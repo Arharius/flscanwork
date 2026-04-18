@@ -14370,14 +14370,29 @@ _BOT_PAUSED: bool = False                        # v14.0: pause/resume via Teleg
 
 
 async def check_execution_queue():
-    """Picks up queued orders and executes them one by one."""
+    """v15.5: Picks up queued orders and executes up to MAX_CONCURRENT in parallel.
+    Each project runs in its own AgentContext, so quality is preserved.
+    LLM/CPU pressure naturally limits us — concurrent_pm enforces the hard cap.
+    """
     queued = db.get_queued_jobs()
     if not queued:
         return
-    logger.info(f"[Queue] Found {len(queued)} order(s) to execute")
-    for job in queued:
-        await orchestrator.execute(dict(job))
-        await asyncio.sleep(2)
+    free_slots = max(0, concurrent_pm.MAX_CONCURRENT - len(concurrent_pm._active))
+    if free_slots <= 0:
+        logger.info(f"[Queue] {len(queued)} queued, but all "
+                    f"{concurrent_pm.MAX_CONCURRENT} slots busy — wait next cycle")
+        return
+    batch = queued[:free_slots]
+    logger.info(f"[Queue] Found {len(queued)} order(s); launching "
+                f"{len(batch)} in parallel (slots {free_slots}/{concurrent_pm.MAX_CONCURRENT})")
+
+    async def _run_one(j):
+        try:
+            await orchestrator.execute(dict(j))
+        except Exception as e:
+            logger.error(f"[Queue] Order {j.get('external_id','?')} failed: {e}")
+
+    await asyncio.gather(*[_run_one(j) for j in batch], return_exceptions=True)
 
 
 async def main_cycle():
