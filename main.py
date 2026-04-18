@@ -1512,6 +1512,10 @@ class LLMService:
             }
 
         except Exception as e:
+            _emsg = str(e)
+            # Re-raise HTTP errors so caller can mark model broken & fallback
+            if any(code in _emsg for code in ("404", "402", "403")):
+                raise
             logger.error(f"{self.provider} API error: {e}")
             return fallback
 
@@ -1713,11 +1717,16 @@ def _get_shared_llm() -> LLMService:
 class SmartLLMRouter:
     """
     Автоматически выбирает LLM-провайдера в зависимости от сложности задачи:
-      • DeepSeek  — быстрый/дешёвый, для простых задач (скрипты, автоматизация < 200 строк)
-      • OpenRouter (claude-3.5-sonnet / gpt-4o) — мощный, для сложных задач
-         (архитектура, безопасность, крупные проекты)
+      • DeepSeek          — быстрый/дешёвый, для простых задач (скрипты < 200 строк)
+      • OpenRouter rotate — complex proposals чередуют deepseek-r1 / claude-3.5-sonnet / gpt-4o
+      • OpenRouter fixed  — architecture → claude-sonnet, security → gpt-4o
     Выбор модели логируется. Если нет ключа — fallback на DeepSeek.
     """
+
+    # Rotation counter for complex proposals (round-robin)
+    _complex_idx: int = 0
+    # Models confirmed unavailable this session (404 / auth errors)
+    _broken_models: set = set()
 
     # Complexity thresholds
     COMPLEX_KEYWORDS = [
@@ -1762,16 +1771,41 @@ class SmartLLMRouter:
     # Model tiers on OpenRouter
     # Configurable via env vars; sensible defaults provided
     OPENROUTER_MODELS = {
-        # For complex proposals: deepseek-r1 — reasoning model, understands architecture
-        "complex":      os.getenv("OPENROUTER_COMPLEX_MODEL",  "deepseek/deepseek-r1"),
-        # For review/scoring: a fast capable model
-        "review":       os.getenv("OPENROUTER_REVIEW_MODEL",   "deepseek/deepseek-chat-v3-0324"),
-        # For architecture / security analysis
-        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",     "deepseek/deepseek-r1"),
-        "security":     os.getenv("OPENROUTER_ARCH_MODEL",     "deepseek/deepseek-r1"),
-        # Medium tasks: same model as DeepSeek but via OpenRouter
-        "medium":       os.getenv("OPENROUTER_MEDIUM_MODEL",   "deepseek/deepseek-chat-v3-0324"),
+        # For architecture analysis: Claude Sonnet — best at understanding code structure
+        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",    "anthropic/claude-3.5-sonnet"),
+        # For security analysis: GPT-4o — strong security reasoning
+        "security":     os.getenv("OPENROUTER_SEC_MODEL",     "openai/gpt-4o"),
+        # For review/scoring: fast cheap model
+        "review":       os.getenv("OPENROUTER_REVIEW_MODEL",  "deepseek/deepseek-chat-v3-0324"),
+        # Medium tasks via DeepSeek
+        "medium":       os.getenv("OPENROUTER_MEDIUM_MODEL",  "deepseek/deepseek-chat-v3-0324"),
     }
+
+    # Round-robin pool for complex proposals: deepseek-r1 → claude-sonnet → gpt-4o
+    COMPLEX_ROTATION: list = [
+        os.getenv("OPENROUTER_COMPLEX_MODEL_0", "deepseek/deepseek-r1"),
+        os.getenv("OPENROUTER_COMPLEX_MODEL_1", "anthropic/claude-3.5-sonnet"),
+        os.getenv("OPENROUTER_COMPLEX_MODEL_2", "openai/gpt-4o"),
+    ]
+
+    @classmethod
+    def _next_complex_model(cls) -> str:
+        """Returns next available model in round-robin rotation, skipping broken ones."""
+        rotation = cls.COMPLEX_ROTATION
+        for _ in range(len(rotation)):
+            model = rotation[cls._complex_idx % len(rotation)]
+            cls._complex_idx += 1
+            if model not in cls._broken_models:
+                return model
+        # All broken — fallback to first (deepseek-r1, most reliable)
+        return rotation[0]
+
+    @classmethod
+    def mark_model_broken(cls, model: str) -> None:
+        """Mark a model as unavailable so rotation skips it."""
+        cls._broken_models.add(model)
+        logger.warning(f"[SmartLLMRouter] ⚠️ Model marked unavailable: {model} "
+                       f"(remaining: {[m for m in cls.COMPLEX_ROTATION if m not in cls._broken_models]})")
 
     @classmethod
     def get_llm_for_task(cls, complexity: str, phase: str = "generate") -> LLMService:
@@ -1781,15 +1815,15 @@ class SmartLLMRouter:
         Routing rules:
           simple               → DeepSeek Chat (fast, cheap)
           medium               → DeepSeek Chat (sufficient quality)
-          complex              → OpenRouter deepseek-r1 (reasoning)
-          phase=architecture   → OpenRouter deepseek-r1 (always)
-          phase=security       → OpenRouter deepseek-r1 (always)
+          complex              → OpenRouter round-robin: deepseek-r1 / claude-3.5-sonnet / gpt-4o
+          phase=architecture   → OpenRouter claude-3.5-sonnet (always)
+          phase=security       → OpenRouter gpt-4o (always)
           phase=review         → OpenRouter deepseek-chat-v3 (fast scoring)
           No OPENROUTER_API_KEY → always fallback to DeepSeek
         """
         openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
 
-        # No OpenRouter key or simple task → DeepSeek (cheapest, fastest)
+        # No OpenRouter key or simple/medium task → DeepSeek (cheapest, fastest)
         need_openrouter = (
             complexity == "complex"
             or phase in ("architecture", "security", "review")
@@ -1798,12 +1832,14 @@ class SmartLLMRouter:
             return _get_shared_llm()
 
         # Pick model by phase first, then by complexity
-        if phase in ("architecture", "security"):
+        if phase == "architecture":
             model = cls.OPENROUTER_MODELS["architecture"]
+        elif phase == "security":
+            model = cls.OPENROUTER_MODELS["security"]
         elif phase == "review":
             model = cls.OPENROUTER_MODELS["review"]
         elif complexity == "complex":
-            model = cls.OPENROUTER_MODELS["complex"]
+            model = cls._next_complex_model()   # round-robin: r1 → sonnet → gpt-4o
         else:
             model = cls.OPENROUTER_MODELS["medium"]
 
@@ -6792,7 +6828,21 @@ async def process_platform(platform: BasePlatform):
                     f"[{platform.name}] 🧠 LLM routed: complexity={_complexity} "
                     f"→ {_task_llm.provider}/{_task_llm.model}"
                 )
-            proposal = await _task_llm.generate_proposal(job_data)
+            try:
+                proposal = await _task_llm.generate_proposal(job_data)
+            except Exception as _llm_err:
+                _err_str = str(_llm_err)
+                # 404 = model unavailable on this OpenRouter plan; mark & fallback
+                if "404" in _err_str or "402" in _err_str or "403" in _err_str:
+                    SmartLLMRouter.mark_model_broken(_task_llm.model)
+                    logger.warning(
+                        f"[{platform.name}] ↩ Model {_task_llm.model} unavailable "
+                        f"({_err_str[:60]}), falling back to DeepSeek"
+                    )
+                    _task_llm = _get_shared_llm()
+                    proposal = await _task_llm.generate_proposal(job_data)
+                else:
+                    raise
             proposal_text = proposal["text"]
             cprof = proposal.get("client_profile", {})
 
