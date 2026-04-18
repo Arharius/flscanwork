@@ -7258,6 +7258,9 @@ class AgentContext:
     live_url: str = ""                   # actual deployment URL (Render / Vercel / Netlify)
     preview_screenshot_url: str = ""     # screenshot URL for Telegram preview
     deploy_provider: str = ""            # "render" | "vercel" | "netlify" | "none"
+    # v15.7 Cross-provider verification
+    cross_score: float = 0.0             # second-opinion score from opposite LLM (0=skipped)
+    cross_notes: List[str] = field(default_factory=list)  # critical issues from cross-check
 
 
 class BaseAgent:
@@ -10840,6 +10843,113 @@ class ReviewerAgent(BaseAgent):
         return ctx
 
 
+# ── CROSS-PROVIDER VERIFIER (v15.7) ──────────────────────────
+
+class CrossProviderVerifierAgent(BaseAgent):
+    """Independent second-opinion code review by the OPPOSITE LLM provider.
+
+    ReviewerAgent uses OpenRouter (phase=review). This agent forces a parallel
+    DeepSeek review with a strict 5-criteria rubric (0-2 pts each = 0-10 total).
+    If providers disagree by >1.5 pts, we trust the lower (pessimist) score
+    and force another fix iteration — this catches inflated self-grades that
+    a single-provider pipeline would miss.
+
+    No-op if either OPENROUTER_API_KEY or DEEPSEEK_API_KEY is missing.
+    """
+    name = "CrossProviderVerifierAgent"
+
+    async def run(self, ctx: AgentContext) -> AgentContext:
+        openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+        deepseek_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+        if not openrouter_key or not deepseek_key:
+            return ctx  # need both providers; otherwise no diversity gained
+
+        cross_llm = _get_shared_llm()  # always DeepSeek
+        if not cross_llm or cross_llm.provider != "DeepSeek" or not cross_llm.api_key:
+            return ctx
+
+        code = ctx.code_files.get(ctx.main_file, "")
+        if not code or len(code) < 80:
+            return ctx
+
+        title = ctx.job.get("title", "")
+        description = (ctx.job.get("description") or "")[:500]
+        features = ", ".join(ctx.spec.get("features", [])[:8])
+        primary_score = float(ctx.review_score or 0)
+
+        system = (
+            "Ты — независимый старший ревьюер. Твоя задача — БЕСПРИСТРАСТНО оценить "
+            "код по строгой рубрике. НЕ доверяй чужим оценкам, будь критичен. "
+            "Возвращай ТОЛЬКО валидный JSON без markdown."
+        )
+        user = (
+            f"Проект: {title}\n"
+            f"ТЗ: {description}\n"
+            f"Требуемые фичи: {features}\n\n"
+            f"Код для проверки ({len(code)} символов):\n```\n{code[:5000]}\n```\n\n"
+            "СТРОГАЯ РУБРИКА (каждый пункт 0-2 балла, итого 0-10):\n"
+            "1. Полнота: все требования ТЗ реализованы (нет TODO/заглушек)\n"
+            "2. Edge cases: пустой ввод/None/ошибки сети обработаны\n"
+            "3. Обработка исключений: try/except с конкретными типами (не bare except)\n"
+            "4. Безопасность: нет hardcoded secrets, безопасные SQL/HTTP запросы\n"
+            "5. Прод-готовность: логирование, env vars, чистый exit\n\n"
+            'Ответ строго JSON: {"score": число 0-10, '
+            '"critical_issues": ["проблема 1", "проблема 2"], '
+            '"verdict": "ship"|"fix"|"reject"}'
+        )
+
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=45.0) as client:
+                resp = await client.post(
+                    cross_llm.api_url,
+                    headers={
+                        "Authorization": f"Bearer {cross_llm.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": cross_llm.model,
+                        "messages": [
+                            {"role": "system", "content": system},
+                            {"role": "user", "content": user},
+                        ],
+                        "max_tokens": 600,
+                        "temperature": 0.1,
+                    },
+                )
+            raw = resp.json()["choices"][0]["message"]["content"]
+            m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+            if not m:
+                logger.debug(f"[{self.name}] no JSON in cross-review response")
+                return ctx
+            data = json.loads(m.group())
+            ctx.cross_score = float(data.get("score", 0) or 0)
+            ctx.cross_notes = [str(n)[:200] for n in (data.get("critical_issues") or [])][:5]
+            verdict = str(data.get("verdict", "fix"))[:10]
+
+            # Disagreement threshold: 1.5 pts → trust pessimist
+            if primary_score > 0 and ctx.cross_score < primary_score - 1.5:
+                logger.warning(
+                    f"[{self.name}] ⚠️ DISAGREEMENT: primary={primary_score:.0f} "
+                    f"cross={ctx.cross_score:.1f} → trusting lower score, "
+                    f"forcing additional fix iteration"
+                )
+                ctx.review_score = int(min(ctx.review_score, ctx.cross_score))
+                ctx.review_approved = False
+                ctx.review_notes = (
+                    [f"[CROSS-CHECK]: {n}" for n in ctx.cross_notes]
+                    + (ctx.review_notes or [])
+                )
+            else:
+                logger.info(
+                    f"[{self.name}] ✅ Cross-check OK: primary={primary_score:.0f} "
+                    f"cross={ctx.cross_score:.1f} verdict={verdict}"
+                )
+        except Exception as e:
+            logger.debug(f"[{self.name}] cross-check error: {e}")
+        return ctx
+
+
 # ── PACKAGER ─────────────────────────────────────────────────
 
 class PackagerAgent(BaseAgent):
@@ -14120,6 +14230,10 @@ class OrderOrchestrator:
 
                 # Full review (ReviewerAgent now also gets code metrics from adversarial review)
                 ctx = await ReviewerAgent().run(ctx)
+
+                # v15.7: Independent second-opinion from opposite LLM provider
+                # — catches inflated self-grades; forces extra fix iter on disagreement
+                ctx = await CrossProviderVerifierAgent().run(ctx)
 
                 # v10.0: Feed failures to SelfRepair for pattern detection
                 if not ctx.test_passed:
