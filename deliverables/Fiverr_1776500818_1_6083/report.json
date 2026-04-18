@@ -1,0 +1,28 @@
+{
+  "job_title": "Разработка Viber-бота для интернет-магазина",
+  "project_type": "viber_bot",
+  "main_file": "bot.py",
+  "files": [
+    "bot.py",
+    "requirements.txt",
+    ".env.example"
+  ],
+  "test_passed": true,
+  "review_score": 5,
+  "review_approved": true,
+  "iterations": 1,
+  "issues": [
+    "Отсутствует обработка ошибок при парсинге запроса от Viber. Рекомендуется обернуть viber.parse_request в try-except блок для предотвращения падения приложения при некорректных данных.",
+    "Не проверяется наличие VIBER_AUTH_TOKEN в переменных окружения. Если токен отсутствует, приложение упадет при инициализации. Добавьте проверку: if not os.getenv('VIBER_AUTH_TOKEN'): raise ValueError('VIBER_AUTH_TOKEN not set').",
+    "В функции handle_subscribed отсутствует возвращаемое значение (return json). Это вызовет ошибку при вызове функции. Исправьте на return jsonify({'status': 'subscribed'}).",
+    "Отсутствует валидация входящих сообщений. В handle_message нет проверки, что request.message.text существует. Добавьте: if not hasattr(request.message, 'text'): return jsonify({'status': 'ignored'}).",
+    "Используется жестко закодированный URL аватара ('http://example.com/avatar.jpg'). Вынесите в переменные окружения или конфигурационный файл.",
+    "Нет логирования критических операций (обработка запросов, ошибки). Добавьте логирование через стандартный модуль logging для отслеживания проблем в production.",
+    "Отсутствует обработка других типов запросов Viber (например, ViberUnsubscribedRequest, ViberDeliveredRequest). Добавьте соответствующие обработчики или общий fallback.",
+    "В функции handle_message используется магические строки для команд. Вынесите команды в константы или конфигурацию для улучшения читаемости и поддержки.",
+    "Не настроен CORS для Flask-приложения. Добавьте обработку CORS, если бот будет интегрирован с веб-интерфейсами.",
+    "Отсутствует ограничение частоты запросов (rate limiting). Рекомендуется добавить для защиты от злоупотреблений, например, через Flask-Limiter."
+  ],
+  "errors": [],
+  "generated_at": "2026-04-18T08:58:30.004939"
+}

@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: freelancebot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    plan: free
+    envVars:
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: KWORK_USERNAME
+        sync: false
+      - key: KWORK_PASSWORD
+        sync: false
+      - key: KWORK_SESSION_COOKIE
+        sync: false
+      - key: FL_USERNAME
+        sync: false
+      - key: FL_PASSWORD
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false
+      - key: VERCEL_TOKEN
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SEARCH_INTERVAL_MINUTES
+        value: "20"
+      - key: MIN_BUDGET
+        value: "50"
+      - key: PORT
+        value: "8080"

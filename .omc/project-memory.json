@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776534284494,
+  "projectRoot": "/Volumes/MacT7/flscanwork",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "requirements.txt"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "__pycache__": {
+      "path": "__pycache__",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1776534284485,
+      "keyFiles": [
+        "bot_state.cpython-311.pyc",
+        "bot_state.cpython-314.pyc",
+        "dashboard.cpython-311.pyc",
+        "dashboard.cpython-314.pyc",
+        "main.cpython-311.pyc"
+      ]
+    },
+    "attached_assets": {
+      "path": "attached_assets",
+      "purpose": null,
+      "fileCount": 21,
+      "lastAccessed": 1776534284485,
+      "keyFiles": [
+        "Pasted--24-1776491254110_1776491254110.txt",
+        "Pasted--24-7--1776491240896_1776491240896.txt",
+        "Pasted--API--1776491183698_1776491183698.txt",
+        "Pasted--API--1776507349733_1776507349734.txt",
+        "Pasted--Full-Stack--1776491164725_1776491164725.txt"
+      ]
+    },
+    "deliverables": {
+      "path": "deliverables",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1776534284485,
+      "keyFiles": []
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

@@ -1,0 +1,199 @@
+2026-04-18 15:16:57,569 | INFO     | FreelanceBot | Database initialized: /home/runner/workspace/jobs.db
+2026-04-18 15:16:57,569 | INFO     | FreelanceBot | LLM провайдер: DeepSeek | модель: deepseek-chat
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot | =========================================================
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   FreelanceBot v14.0  —  Self-Learning Autonomous Freelance Agent
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot | =========================================================
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   Database      : /home/runner/workspace/jobs.db
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   Check interval: every 20 min
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   Min budget    : $50.0
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   Platforms     : Kwork, FL.ru
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   LLM           : ✅ DeepSeek (deepseek-chat)
+2026-04-18 15:16:57,576 | INFO     | FreelanceBot |   Self-learning : ✅ Active | scored=269 avg=8.47/10 ε=20% explore
+2026-04-18 15:16:57,577 | INFO     | FreelanceBot |   Kwork seller  : ✅ Продавец: Andres_tech
+2026-04-18 15:16:57,577 | INFO     | FreelanceBot |   FL.ru seller  : ✅ Продавец: gregorianwoolf@gmail.com
+2026-04-18 15:16:57,577 | INFO     | FreelanceBot |   Notifications : ✅ Telegram configured
+2026-04-18 15:16:57,577 | INFO     | FreelanceBot | =========================================================
+2026-04-18 15:16:57,642 | INFO     | FreelanceBot | [Dashboard] Web dashboard started on port 5000 — http://localhost:5000
+ * Serving Flask app 'dashboard'
+ * Debug mode: off
+2026-04-18 15:16:57,642 | INFO     | FreelanceBot | [PersistentState] bayesian    : ⚡ Fresh start
+2026-04-18 15:16:57,643 | INFO     | FreelanceBot | [PersistentState] hebbian     : ⚡ Fresh start
+2026-04-18 15:16:57,643 | INFO     | FreelanceBot | [PersistentState] elo         : ✅ 2 pattern ratings restored
+2026-04-18 15:16:57,643 | INFO     | FreelanceBot | [PersistentState] poincare    : ✅ 3 failure events restored
+2026-04-18 15:16:57,644 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,644 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,644 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,644 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,645 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,645 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,645 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,645 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,646 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,646 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 15:16:57,646 | INFO     | apscheduler.scheduler | Added job "main_cycle" to job store "default"
+2026-04-18 15:16:57,646 | INFO     | apscheduler.scheduler | Added job "generate_weekly_report" to job store "default"
+2026-04-18 15:16:57,647 | INFO     | apscheduler.scheduler | Added job "check_execution_queue" to job store "default"
+2026-04-18 15:16:57,647 | INFO     | apscheduler.scheduler | Added job "run_learning_cycle" to job store "default"
+2026-04-18 15:16:57,648 | INFO     | apscheduler.scheduler | Added job "main.<locals>._weekly_learning_report" to job store "default"
+2026-04-18 15:16:57,648 | INFO     | apscheduler.scheduler | Added job "main.<locals>._weekly_reputation_report" to job store "default"
+2026-04-18 15:16:57,648 | INFO     | apscheduler.scheduler | Added job "main.<locals>._weekly_portfolio_optimization" to job store "default"
+2026-04-18 15:16:57,648 | INFO     | apscheduler.scheduler | Added job "main.<locals>._daily_ranking_maintenance" to job store "default"
+2026-04-18 15:16:57,648 | INFO     | apscheduler.scheduler | Added job "main.<locals>._check_platform_messages" to job store "default"
+2026-04-18 15:16:57,648 | INFO     | apscheduler.scheduler | Added job "main.<locals>._flru_promotion" to job store "default"
+2026-04-18 15:16:57,649 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-18 15:16:57,649 | INFO     | FreelanceBot | Scheduler started. Next run in 20 min. Press Ctrl+C to stop.
+2026-04-18 15:16:57,649 | INFO     | FreelanceBot | [SelfTest] ═══════════ v10.0 PRODUCTION SELF-TEST ═══════════
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] db_jobs                  : ✅ OK (99 jobs)
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] llm_service              : ✅ DeepSeek API key present
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] learning_pillars         : ✅ All 5 pillars active
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] expert_gate              : ✅ Telegram
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] reputation_agent         : ✅ Tables OK
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] project_types            : ✅ 29 types configured
+2026-04-18 15:17:19,109 | INFO     | FreelanceBot | [SelfTest] platforms                : ✅ 2/2 healthy: Kwork, FL.ru
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] scheduler                : ✅ 10 jobs: execution_queue, platform_messages, search_cycle, learning_cycle, flru_promotion, daily_ranking_maintenance, weekly_portfolio_optimization, weekly_learning_report, weekly_report, weekly_reputation_report
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] deliverables_dir         : ✅ Ready
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] oauth_manager            : ✅ Active
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] portfolio_agent          : ✅ DB OK (0 entries)
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] v10_engine_suite         : ✅ CodePlanner + TestFirst + ExecRefinement + DocFetcher(GitHub) + AdversarialReview + CodeMetrics + Bayesian(Thompson) + Psychology(Cialdini) + SelfRepair + Hebbian(3 patterns) + NLO(density=1.00) + Annealing(T0=0.40→T2=0.12) + QuantumCollapse + Lyapunov(V=10-score) + Elo(K=32) + Poincaré(window=10)
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] persistent_memory        : ✅ SQLite round-trip OK | 4 engines wired (Bayesian+Hebbian+Elo+Poincaré)
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] static_analysis          : ✅ PylintAnalyzer(10.0/10 good code) + StaticFeedbackLoop(target≥7.0) + pytest runner — all wired
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] kwork_full_setup         : ✅ KworkManager v11.0 — 5 кворков, 3 demo samples, ranking maintenance wired, showcase dir OK
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] visual_debug_agent       : ✅ VisualDebugAgent v12.0 — HTML preview (4174 chars) + mshots screenshot API wired
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] live_deployment_agent    : ✅ LiveDeploymentAgent v12.0 — Vercel/Netlify(HTML) + Render.com(Python, free) + render.yaml + Procfile + fly.toml generated | Config tokens ready
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] ts_static_analyzer       : ✅ TSStaticAnalyzer v13.0 — typescript_api(9.5/10) + browser_automation(10.0/10) | tsc/eslint + heuristic analysis wired
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] new_project_types_v13    : ✅ v13.0 — 3 new types (nextjs_app, browser_automation, typescript_api) registered | DeveloperAgent configs ✓ | TesterAgent tests ✓ | Dockerfiles ✓ | Total: 29 project types
+2026-04-18 15:17:19,110 | INFO     | FreelanceBot | [SelfTest] telegram_command_bot     : ✅ TelegramCommandBot v14.0 — /status /jobs /pause /resume /stats /promote /help | _BOT_PAUSED global wired into main_cycle
+2026-04-18 15:17:19,111 | INFO     | FreelanceBot | [SelfTest] kwork_inbox_monitoring   : ✅ KworkManager v14.0 — check_messages + auto_reply_message (LLM) + check_and_reply_all wired | Telegram notification on new messages
+2026-04-18 15:17:19,111 | INFO     | FreelanceBot | [SelfTest] flru_v14                 : ✅ FLruManager v14.0 — setup_profile_full (LLM bio + skills) + check_messages (HTML scrape) + auto_reply (LLM) + promote_account (activity signals) | scheduler: 5min + 4h jobs wired
+2026-04-18 15:17:19,111 | INFO     | FreelanceBot | [SelfTest] ═══════════════════════════════════════════
+2026-04-18 15:17:19,111 | INFO     | FreelanceBot | [SelfTest] RESULT: 22/22 OK | 0 WARN | 0 FAIL
+2026-04-18 15:17:19,111 | INFO     | FreelanceBot | [SelfTest] ✅ FreelanceBot v14.0 fully operational! (CodePlanner + TestFirst + ExecRefinement + DocFetcher + VisualDebug + LiveDeploy + NextJS + BrowserAuto + TSAnalyzer + TelegramCmdBot + KworkInbox + FLruInbox + FLruPromotion active)
+2026-04-18 15:17:19,506 | INFO     | httpx | HTTP Request: POST https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/sendMessage "HTTP/1.1 200 OK"
+2026-04-18 15:17:19,507 | INFO     | FreelanceBot | [TelegramCmd] ✅ Command bot started — polling for commands
+2026-04-18 15:17:19,507 | INFO     | FreelanceBot | [KworkManager] ═══ Полная настройка аккаунта Kwork ═══
+2026-04-18 15:17:19,507 | INFO     | FreelanceBot | [KworkManager] Используем KWORK_SESSION_COOKIE из Secrets...
+2026-04-18 15:17:19,507 | INFO     | FreelanceBot | [KworkManager] ✓ Авторизован через session cookie
+2026-04-18 15:17:19,508 | INFO     | FreelanceBot | [KworkManager] Генерирую AI-описание профиля...
+2026-04-18 15:17:19,884 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 15:17:20,867 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:17:31,333 | INFO     | httpx | HTTP Request: GET https://kwork.ru/profile/edit "HTTP/1.1 404 Not Found"
+2026-04-18 15:17:31,611 | INFO     | httpx | HTTP Request: POST https://kwork.ru/profile/save "HTTP/1.1 404 Not Found"
+2026-04-18 15:17:33,113 | INFO     | FreelanceBot | [KworkManager] Skills update пропущен (требуется API-токен)
+2026-04-18 15:17:33,113 | INFO     | FreelanceBot | [KworkManager] Создание кворков пропущено (требуется API-токен; кворки создайте вручную)
+2026-04-18 15:17:33,113 | INFO     | FreelanceBot | [KworkManager] Загружаю 3 примеров работ...
+2026-04-18 15:17:33,114 | INFO     | FreelanceBot | [KworkManager] Demo sample saved: deliverables/showcase/demo_Viber_бот_для_интернет_магазин.py
+2026-04-18 15:17:35,116 | INFO     | FreelanceBot | [KworkManager] Demo sample saved: deliverables/showcase/demo_Webhook_интеграция_Viber___CRM.py
+2026-04-18 15:17:37,118 | INFO     | FreelanceBot | [KworkManager] Demo sample saved: deliverables/showcase/demo_Кросс_платформенный_бот_Viber_.py
+2026-04-18 15:17:37,220 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:17:39,121 | INFO     | FreelanceBot | [KworkManager] ═══ Настройка завершена ═══
+  Bio: ⚠️ | Кворков создано: 0/5 | Портфолио: 3/3
+2026-04-18 15:17:39,498 | INFO     | httpx | HTTP Request: POST https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/sendMessage "HTTP/1.1 200 OK"
+2026-04-18 15:17:39,499 | INFO     | FreelanceBot | [FLruManager] ===== Настройка аккаунта на FL.ru =====
+2026-04-18 15:17:39,499 | INFO     | FreelanceBot | [FLruManager] Авторизация на FL.ru...
+2026-04-18 15:17:39,880 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 15:17:40,092 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 15:17:40,297 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 15:17:40,548 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 15:17:40,563 | INFO     | FreelanceBot | [FLruManager] ✓ Авторизован на FL.ru
+2026-04-18 15:17:40,563 | INFO     | FreelanceBot | [FLruManager] Генерирую описание профиля через DeepSeek...
+2026-04-18 15:17:40,947 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 15:17:52,133 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/users/edit/ "HTTP/1.1 404 Not Found"
+2026-04-18 15:17:52,537 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/cabinet/ "HTTP/1.1 404 Not Found"
+2026-04-18 15:17:52,914 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/users/edit/ "HTTP/1.1 404 Not Found"
+2026-04-18 15:17:52,972 | INFO     | FreelanceBot | [FLruManager] ===== Настройка FL.ru завершена =====
+2026-04-18 15:17:52,972 | INFO     | FreelanceBot | [FLruManager] Авторизация на FL.ru...
+2026-04-18 15:17:53,352 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 15:17:53,578 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:17:53,600 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 15:17:53,907 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 15:17:54,181 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 15:17:54,206 | INFO     | FreelanceBot | [FLruManager] ✓ Авторизован на FL.ru
+2026-04-18 15:17:54,207 | INFO     | FreelanceBot | [FLruManager] ===== Полная настройка профиля FL.ru =====
+2026-04-18 15:17:54,566 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 15:18:08,385 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/users/edit/ "HTTP/1.1 404 Not Found"
+2026-04-18 15:18:08,821 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/cabinet/ "HTTP/1.1 404 Not Found"
+2026-04-18 15:18:09,182 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/users/edit/ "HTTP/1.1 404 Not Found"
+2026-04-18 15:18:09,244 | INFO     | FreelanceBot | [FLruManager] ✓ Описание профиля обновлено
+2026-04-18 15:18:09,929 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:18:10,039 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/users/self/edit/ "HTTP/1.1 200 OK"
+2026-04-18 15:18:10,506 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/users/self/skills/ "HTTP/1.1 200 OK"
+2026-04-18 15:18:10,548 | INFO     | FreelanceBot | [FLruManager] ✓ Навыки обновлены: Python, Telegram Bot, Parser, FastAPI, Automation, Web Scraping, Docker, PostgreSQL, asyncio, aiogram
+2026-04-18 15:18:10,548 | INFO     | FreelanceBot | [FLruManager] ===== Полная настройка профиля завершена =====
+2026-04-18 15:18:10,548 | INFO     | FreelanceBot | =======================================================
+2026-04-18 15:18:10,548 | INFO     | FreelanceBot |   Starting search cycle
+2026-04-18 15:18:10,548 | INFO     | FreelanceBot | =======================================================
+2026-04-18 15:18:10,548 | INFO     | FreelanceBot | [Kwork] Searching jobs...
+2026-04-18 15:18:10,556 | INFO     | FreelanceBot | [FL.ru] Searching jobs...
+2026-04-18 15:18:11,182 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/projects/?kind=1&search=viber%20bot "HTTP/1.1 200 OK"
+2026-04-18 15:18:11,306 | INFO     | FreelanceBot | [FL.ru] No new relevant jobs this cycle
+2026-04-18 15:18:11,655 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects?c=11&keyword=viber%20bot "HTTP/1.1 200 OK"
+2026-04-18 15:18:12,098 | INFO     | FreelanceBot | [Kwork] New job [40/100]: "Bot development: Viber + Telegram dual-platform" | budget: 190.31890567712637 USD | bid=$162
+2026-04-18 15:18:12,451 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 15:18:21,043 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 15:18:22,862 | INFO     | FreelanceBot | [LLM] Proposal [results] score=8.5/10 | lang=en tone=neutral words=226 | psychology: ✅
+2026-04-18 15:18:22,862 | INFO     | FreelanceBot | [Kwork] Proposal simulated for Kwork_1776525491_0_1233
+2026-04-18 15:18:23,412 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=340) [results] 8.5/10 lang=en tone=neutral
+2026-04-18 15:18:25,420 | INFO     | FreelanceBot | [Kwork] Cycle done: 1 proposals sent
+2026-04-18 15:18:25,420 | ERROR    | FreelanceBot | [Kwork] Unhandled error: name 'relevant_jobs' is not defined
+Traceback (most recent call last):
+  File "/home/runner/workspace/main.py", line 5951, in process_platform
+    f"Отправлено откликов: <b>{new_count}</b> из {len(relevant_jobs)} релевантных\n"
+                                                      ^^^^^^^^^^^^^
+NameError: name 'relevant_jobs' is not defined
+2026-04-18 15:18:25,431 | WARNING  | FreelanceBot | [RateLimitMgr] Kwork error (attempt 1) → backoff 1.3s
+
+╔════════════════════════════════════════════════════════════════════╗
+║  FreelanceBot v8.0  ·  2026-04-18 15:18 UTC                        ║
+╠════════════════════════════════════════════════════════════════════╣
+║  📊 PIPELINE           │  💰 REVENUE            │  🧠 LEARNING        ║
+║  Proposals: 254       │  Pipeline: $4236      │  Scored: 270       ║
+║  Replied:   0         │  30d proj: $4236      │  Avg: 8.47/10      ║
+║  Won:       0         │  Paid:     $0         │  Best: [results]   ║
+╠════════════════════════════════════════════════════════════════════╣
+║  🔥 HOT SKILLS (avg $)           │  🏆 TOP PLATFORMS (weighted)      ║
+║  1. viber          $137         │  Freelancer         $2575        ║
+║  2. python         $137         │  Kwork              $454         ║
+║  3. telegram       $212         │  Upwork             $382         ║
+║  4. both           $212         │  Fiverr             $349         ║
+║                                 │  Weblancer          $330         ║
+╠════════════════════════════════════════════════════════════════════╣
+║  ⏰ OPTIMAL SUBMISSION TIMES (UTC)                                  ║
+║  Upwo: Fri 10:00 U   Free: Mon 10:00 U   Kwor: Fri 12:00 U         ║
+║  FL.r: Mon 09:00 U   Five: Fri 12:00 U   Webl: Fri 12:00 U         ║
+╚════════════════════════════════════════════════════════════════════╝
+
+2026-04-18 15:18:25,433 | INFO     | FreelanceBot |   Cycle complete
+
+2026-04-18 15:18:26,287 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:18:42,647 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:18:59,008 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:19:15,380 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:19:31,741 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:19:48,107 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:20:04,474 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:20:20,845 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:20:37,206 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:20:53,565 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:21:09,942 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:21:26,302 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:21:42,668 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:21:57,658 | INFO     | apscheduler.executors.default | Running job "check_execution_queue (trigger: interval[0:05:00], next run at: 2026-04-18 15:26:57 UTC)" (scheduled at 2026-04-18 15:21:57.644510+00:00)
+2026-04-18 15:21:57,659 | INFO     | apscheduler.executors.default | Job "check_execution_queue (trigger: interval[0:05:00], next run at: 2026-04-18 15:26:57 UTC)" executed successfully
+2026-04-18 15:21:57,659 | INFO     | apscheduler.executors.default | Running job "main.<locals>._check_platform_messages (trigger: interval[0:05:00], next run at: 2026-04-18 15:26:57 UTC)" (scheduled at 2026-04-18 15:21:57.646004+00:00)
+2026-04-18 15:21:58,248 | INFO     | httpx | HTTP Request: GET https://api.kwork.ru/messages?page=1&filter=unread "HTTP/1.1 401 Unauthorized"
+2026-04-18 15:21:58,249 | INFO     | FreelanceBot | [FLruManager] Авторизация на FL.ru...
+2026-04-18 15:21:58,626 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 15:21:58,844 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 15:21:59,024 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:21:59,048 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 15:21:59,264 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 15:21:59,288 | INFO     | FreelanceBot | [FLruManager] ✓ Авторизован на FL.ru
+2026-04-18 15:21:59,789 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/messages/ "HTTP/1.1 403 Forbidden"
+2026-04-18 15:21:59,849 | INFO     | apscheduler.executors.default | Job "main.<locals>._check_platform_messages (trigger: interval[0:05:00], next run at: 2026-04-18 15:26:57 UTC)" executed successfully
+2026-04-18 15:22:14,388 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:22:14,389 | INFO     | FreelanceBot | [TelegramCmd] Command received: /job
+2026-04-18 15:22:14,762 | INFO     | httpx | HTTP Request: POST https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/sendMessage "HTTP/1.1 200 OK"
+2026-04-18 15:22:30,121 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=400433895&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 15:22:30,121 | INFO     | FreelanceBot | [TelegramCmd] Command received: /jobs
+2026-04-18 15:22:30,491 | INFO     | httpx | HTTP Request: POST https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/sendMessage "HTTP/1.1 200 OK"
+2026-04-18 15:22:46,857 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=400433896&timeout=1&limit=20 "HTTP/1.1 200 OK"

@@ -1,0 +1,67 @@
+# Role
+
+You are an expert system architect specializing in autonomous multi-agent AI systems for freelance marketplace automation on Russian platforms. Your role is to design a production-ready, competitive multi-agent architecture capable of executing freelance projects at the highest professional standard—work of such quality and completeness that clients experience zero friction and 100% satisfaction.
+
+# Task
+
+Design a comprehensive architecture for a multi-agent autonomous system that:
+- Operates on **Russian freelance platforms fl.ru and kwork** (primary focus)
+- Accepts **all project types without limitation** (technical, creative, data work, content creation, design, copywriting, etc.)
+- Employs **combination of automated testing + human expert verification** before delivery to guarantee flawless execution
+- Secures and executes projects independently with minimal human oversight
+- Actively manages **profile optimization, portfolio building, and demo/showcase creation** on fl.ru and kwork to establish market presence and credibility
+- Delivers work at a caliber that exceeds typical human freelancer capability in speed, consistency, precision, and completeness
+
+# Context
+
+This system represents a novel market category: autonomous, end-to-end project execution that replicates or exceeds agency-level quality without human freelancer limitations. It competes not on price, but on capability—solving entire project categories that currently require teams or agencies, delivered by a single autonomous entity. The system operates on Russian freelance platforms where demand for reliable, high-quality work execution is substantial. The system must establish an unbreakable competitive moat through superior execution, learning, and optimization. Every deliverable must fully satisfy the client without errors or revisions—work so complete and professional that clients experience it as flawless.
+
+# Instructions
+
+## System Architecture
+
+Design discrete, specialized agents with clear responsibilities and explicit decision logic:
+
+**Project Discovery Agent**: Monitors fl.ru and kwork in real-time, identifies opportunities matching system capabilities, scores project viability using marketplace intelligence, and flags high-probability wins.
+
+**Bidding & Negotiation Agent**: Analyzes client requirements, marketplace rates, project complexity, and competition on Russian platforms. Crafts personalized proposals positioned to win while maintaining quality standards. Handles counter-offers and negotiation strategically.
+
+**Project Analysis Agent**: Deconstructs accepted projects into technical requirements, defines success criteria, identifies risks, and creates detailed execution plans with resource allocation.
+
+**Development Agent**: Executes project work across all domains—writing production code, creating publishable content, designing assets, performing data analysis—using specialized sub-models or tooling. Works to specifications with embedded quality standards.
+
+**Quality Assurance Agent**: Conducts automated testing and validation against acceptance criteria. Identifies defects, flags work for human expert review before delivery, iterates based on expert feedback until completeness is guaranteed. No deliverable reaches client without human expert verification confirming zero errors and full specification compliance.
+
+**Client Communication Agent**: Manages all interactions—initial questions, progress updates, clarifications, post-delivery support. Personalizes tone and style to client preferences and project context. Communicates in Russian when operating on fl.ru and kwork.
+
+**Profile & Portfolio Agent**: Actively manages profile optimization on fl.ru and kwork, creates and updates portfolio entries, builds and deploys demos and showcases to establish market presence and credibility. Ensures the system presents as a reliable, high-capacity vendor on both platforms.
+
+**Reputation & Optimization Agent**: Tracks feedback on fl.ru and kwork, analyzes win/loss patterns, optimizes bidding strategy, learns from project outcomes, and maintains rating optimization specific to Russian platform dynamics.
+
+## Competitive Differentiation
+
+The system must deliver:
+- **Speed**: 3-5x faster project turnaround than human competitors without quality compromise
+- **Consistency**: Every deliverable meets or exceeds specifications; zero rework rate
+- **Completeness**: Work is 100% functional and client-ready on first delivery
+- **Scope mastery**: Handles complex, multi-discipline projects beyond typical human freelancer capability
+- **Availability**: 24/7 operation without fatigue or productivity degradation
+- **Learning**: Improves bidding accuracy and execution quality with each project
+- **Risk mitigation**: Proactively identifies and eliminates project failure scenarios
+- **Client satisfaction guarantee**: Flawless execution that requires zero revisions or corrections from clients
+- **Market presence**: Strong, credible profiles and portfolio presence on fl.ru and kwork that attract premium clients
+
+## Output Specification
+
+Provide:
+1. **System architecture diagram** (textual or conceptual): Agent interactions, data flows, and decision points
+2. **Each agent's behavioral rules**: Core functions, decision logic, success metrics, failure handling
+3. **Quality assurance framework**: Specific mechanisms for automated validation + human expert verification before delivery; metrics ensuring 100% client satisfaction and zero revision rate
+4. **Integration layer**: How agents coordinate, share state, handle conflicts, and maintain project context
+5. **Profile and portfolio management strategy**: How the Profile & Portfolio Agent builds credibility on fl.ru and kwork, creates demos and showcases, and maintains an attractive market presence
+6. **fl.ru and kwork integration strategy**: Technical approach to Russian platforms (API, automation, or hybrid)
+7. **Competitive moat**: Specific technical or operational advantages that prevent replication
+8. **Scalability model**: How the system handles volume growth without degradation
+9. **Implementation roadmap**: Phased approach starting with 1-2 high-margin niches on Russian platforms, expanding across fl.ru and kwork's full service spectrum
+
+Ensure every component is designed for autonomous operation. The system makes decisions independently, course-corrects without intervention, learns continuously to improve, actively builds market presence, and manages its own profile. All work must reach clients at the highest professional standard—flawless, complete, and requiring zero revision.

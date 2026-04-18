@@ -1,0 +1,252 @@
+2026-04-18 16:45:30,421 | INFO     | FreelanceBot | Database initialized: /home/runner/workspace/jobs.db
+2026-04-18 16:45:30,422 | INFO     | FreelanceBot | LLM провайдер: DeepSeek | модель: deepseek-chat
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot | =========================================================
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   FreelanceBot v14.0  —  Self-Learning Autonomous Freelance Agent
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot | =========================================================
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Database      : /home/runner/workspace/jobs.db
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Check interval: every 20 min
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Min budget    : $50.0
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Platforms     : Kwork, FL.ru
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   LLM           : ✅ DeepSeek (deepseek-chat)
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Self-learning : ✅ Active | scored=2 avg=8.62/10 ε=20% explore
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Kwork seller  : ✅ Продавец: Andres_tech
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   FL.ru seller  : ⚙️  Настроен: gregorianwoolf@gmail.com (авторизация при старте)
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot |   Notifications : ✅ Telegram configured
+2026-04-18 16:45:30,429 | INFO     | FreelanceBot | =========================================================
+2026-04-18 16:45:30,502 | INFO     | FreelanceBot | [Dashboard] Web dashboard started on port 5000 — http://localhost:5000
+ * Serving Flask app 'dashboard'
+ * Debug mode: off
+2026-04-18 16:45:30,503 | INFO     | FreelanceBot | [PersistentState] bayesian    : ⚡ Fresh start
+2026-04-18 16:45:30,503 | INFO     | FreelanceBot | [PersistentState] hebbian     : ⚡ Fresh start
+2026-04-18 16:45:30,503 | INFO     | FreelanceBot | [PersistentState] elo         : ✅ 2 pattern ratings restored
+2026-04-18 16:45:30,503 | INFO     | FreelanceBot | [PersistentState] poincare    : ✅ 3 failure events restored
+2026-04-18 16:45:30,505 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,505 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,505 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,506 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,506 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,506 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,506 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,506 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,507 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,507 | INFO     | apscheduler.scheduler | Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-04-18 16:45:30,507 | INFO     | apscheduler.scheduler | Added job "main_cycle" to job store "default"
+2026-04-18 16:45:30,508 | INFO     | apscheduler.scheduler | Added job "generate_weekly_report" to job store "default"
+2026-04-18 16:45:30,508 | INFO     | apscheduler.scheduler | Added job "check_execution_queue" to job store "default"
+2026-04-18 16:45:30,508 | INFO     | apscheduler.scheduler | Added job "run_learning_cycle" to job store "default"
+2026-04-18 16:45:30,508 | INFO     | apscheduler.scheduler | Added job "main.<locals>._weekly_learning_report" to job store "default"
+2026-04-18 16:45:30,508 | INFO     | apscheduler.scheduler | Added job "main.<locals>._weekly_reputation_report" to job store "default"
+2026-04-18 16:45:30,508 | INFO     | apscheduler.scheduler | Added job "main.<locals>._weekly_portfolio_optimization" to job store "default"
+2026-04-18 16:45:30,509 | INFO     | apscheduler.scheduler | Added job "main.<locals>._daily_ranking_maintenance" to job store "default"
+2026-04-18 16:45:30,509 | INFO     | apscheduler.scheduler | Added job "main.<locals>._check_platform_messages" to job store "default"
+2026-04-18 16:45:30,509 | INFO     | apscheduler.scheduler | Added job "main.<locals>._flru_promotion" to job store "default"
+2026-04-18 16:45:30,509 | INFO     | apscheduler.scheduler | Scheduler started
+2026-04-18 16:45:30,509 | INFO     | FreelanceBot | Scheduler started. Next run in 20 min. Press Ctrl+C to stop.
+2026-04-18 16:45:30,509 | INFO     | FreelanceBot | [SelfTest] ═══════════ v10.0 PRODUCTION SELF-TEST ═══════════
+2026-04-18 16:45:51,707 | INFO     | FreelanceBot | [SelfTest] db_jobs                  : ✅ OK (3 jobs)
+2026-04-18 16:45:51,707 | INFO     | FreelanceBot | [SelfTest] llm_service              : ✅ DeepSeek API key present
+2026-04-18 16:45:51,707 | INFO     | FreelanceBot | [SelfTest] learning_pillars         : ✅ All 5 pillars active
+2026-04-18 16:45:51,707 | INFO     | FreelanceBot | [SelfTest] expert_gate              : ✅ Telegram
+2026-04-18 16:45:51,707 | INFO     | FreelanceBot | [SelfTest] reputation_agent         : ✅ Tables OK
+2026-04-18 16:45:51,707 | INFO     | FreelanceBot | [SelfTest] project_types            : ✅ 29 types configured
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] platforms                : ✅ 2/2 healthy: Kwork, FL.ru
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] scheduler                : ✅ 10 jobs: execution_queue, platform_messages, search_cycle, learning_cycle, flru_promotion, daily_ranking_maintenance, weekly_portfolio_optimization, weekly_learning_report, weekly_report, weekly_reputation_report
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] deliverables_dir         : ✅ Ready
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] oauth_manager            : ✅ Active
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] portfolio_agent          : ✅ DB OK (0 entries)
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] v10_engine_suite         : ✅ CodePlanner + TestFirst + ExecRefinement + DocFetcher(GitHub) + AdversarialReview + CodeMetrics + Bayesian(Thompson) + Psychology(Cialdini) + SelfRepair + Hebbian(3 patterns) + NLO(density=1.00) + Annealing(T0=0.40→T2=0.12) + QuantumCollapse + Lyapunov(V=10-score) + Elo(K=32) + Poincaré(window=10)
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] persistent_memory        : ✅ SQLite round-trip OK | 4 engines wired (Bayesian+Hebbian+Elo+Poincaré)
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] static_analysis          : ✅ PylintAnalyzer(10.0/10 good code) + StaticFeedbackLoop(target≥7.0) + pytest runner — all wired
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] kwork_full_setup         : ✅ KworkManager v11.0 — 5 кворков, 3 demo samples, ranking maintenance wired, showcase dir OK
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] visual_debug_agent       : ✅ VisualDebugAgent v12.0 — HTML preview (4174 chars) + mshots screenshot API wired
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] live_deployment_agent    : ✅ LiveDeploymentAgent v12.0 — Vercel/Netlify(HTML) + Render.com(Python, free) + render.yaml + Procfile + fly.toml generated | Config tokens ready
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] ts_static_analyzer       : ✅ TSStaticAnalyzer v13.0 — typescript_api(9.5/10) + browser_automation(10.0/10) | tsc/eslint + heuristic analysis wired
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] new_project_types_v13    : ✅ v13.0 — 3 new types (nextjs_app, browser_automation, typescript_api) registered | DeveloperAgent configs ✓ | TesterAgent tests ✓ | Dockerfiles ✓ | Total: 29 project types
+2026-04-18 16:45:51,708 | INFO     | FreelanceBot | [SelfTest] telegram_command_bot     : ✅ TelegramCommandBot v14.0 — /status /jobs /pause /resume /stats /promote /help | _BOT_PAUSED global wired into main_cycle
+2026-04-18 16:45:51,709 | INFO     | FreelanceBot | [SelfTest] kwork_inbox_monitoring   : ✅ KworkManager v14.0 — check_messages + auto_reply_message (LLM) + check_and_reply_all wired | Telegram notification on new messages
+2026-04-18 16:45:51,709 | INFO     | FreelanceBot | [SelfTest] flru_v14                 : ✅ FLruManager v14.0 — setup_profile_full (LLM bio + skills) + check_messages (HTML scrape) + auto_reply (LLM) + promote_account (activity signals) | scheduler: 5min + 4h jobs wired
+2026-04-18 16:45:51,709 | INFO     | FreelanceBot | [SelfTest] ═══════════════════════════════════════════
+2026-04-18 16:45:51,709 | INFO     | FreelanceBot | [SelfTest] RESULT: 22/22 OK | 0 WARN | 0 FAIL
+2026-04-18 16:45:51,709 | INFO     | FreelanceBot | [SelfTest] ✅ FreelanceBot v14.0 fully operational! (CodePlanner + TestFirst + ExecRefinement + DocFetcher + VisualDebug + LiveDeploy + NextJS + BrowserAuto + TSAnalyzer + TelegramCmdBot + KworkInbox + FLruInbox + FLruPromotion active)
+2026-04-18 16:45:52,105 | INFO     | httpx | HTTP Request: POST https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/sendMessage "HTTP/1.1 200 OK"
+2026-04-18 16:45:52,106 | INFO     | FreelanceBot | [TelegramCmd] ✅ Command bot started — polling for commands
+2026-04-18 16:45:52,106 | INFO     | FreelanceBot | [KworkManager] ═══ Полная настройка аккаунта Kwork ═══
+2026-04-18 16:45:52,106 | INFO     | FreelanceBot | [KworkManager] Используем KWORK_SESSION_COOKIE из Secrets...
+2026-04-18 16:45:52,106 | INFO     | FreelanceBot | [KworkManager] ✓ Авторизован через session cookie
+2026-04-18 16:45:52,106 | INFO     | FreelanceBot | [KworkManager] Генерирую AI-описание профиля...
+2026-04-18 16:45:52,528 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:45:53,466 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:46:05,878 | INFO     | httpx | HTTP Request: GET https://kwork.ru/profile/edit "HTTP/1.1 404 Not Found"
+2026-04-18 16:46:06,181 | INFO     | httpx | HTTP Request: POST https://kwork.ru/profile/save "HTTP/1.1 404 Not Found"
+2026-04-18 16:46:07,683 | INFO     | FreelanceBot | [KworkManager] Skills update пропущен (требуется API-токен)
+2026-04-18 16:46:07,683 | INFO     | FreelanceBot | [KworkManager] Создание кворков пропущено (требуется API-токен; кворки создайте вручную)
+2026-04-18 16:46:07,683 | INFO     | FreelanceBot | [KworkManager] Загружаю 3 примеров работ...
+2026-04-18 16:46:07,683 | INFO     | FreelanceBot | [KworkManager] Demo sample saved: deliverables/showcase/demo_Viber_бот_для_интернет_магазин.py
+2026-04-18 16:46:09,684 | INFO     | FreelanceBot | [KworkManager] Demo sample saved: deliverables/showcase/demo_Webhook_интеграция_Viber___CRM.py
+2026-04-18 16:46:09,824 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:46:11,688 | INFO     | FreelanceBot | [KworkManager] Demo sample saved: deliverables/showcase/demo_Кросс_платформенный_бот_Viber_.py
+2026-04-18 16:46:13,690 | INFO     | FreelanceBot | [KworkManager] ═══ Настройка завершена ═══
+  Bio: ⚠️ | Кворков создано: 0/5 | Портфолио: 3/3
+2026-04-18 16:46:14,121 | INFO     | httpx | HTTP Request: POST https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/sendMessage "HTTP/1.1 200 OK"
+2026-04-18 16:46:14,122 | INFO     | FreelanceBot | [FLruManager] ===== Настройка аккаунта на FL.ru =====
+2026-04-18 16:46:14,122 | INFO     | FreelanceBot | [FLruManager] Авторизация на FL.ru через форму...
+2026-04-18 16:46:14,645 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 16:46:14,877 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 16:46:15,272 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/account/login/ "HTTP/1.1 302 Found"
+2026-04-18 16:46:15,274 | WARNING  | FreelanceBot | [FLruManager] Авторизация не удалась: status=302 redirect=https://www.fl.ru/account/login/
+2026-04-18 16:46:15,274 | ERROR    | FreelanceBot | [FLruManager] Авторизация не удалась — отмена настройки
+2026-04-18 16:46:15,274 | INFO     | FreelanceBot | [FLruManager] Авторизация на FL.ru через форму...
+2026-04-18 16:46:15,655 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/login/ "HTTP/1.1 302 Found"
+2026-04-18 16:46:15,908 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/account/login/ "HTTP/1.1 200 OK"
+2026-04-18 16:46:16,257 | INFO     | httpx | HTTP Request: POST https://www.fl.ru/account/login/ "HTTP/1.1 302 Found"
+2026-04-18 16:46:16,259 | WARNING  | FreelanceBot | [FLruManager] Авторизация не удалась: status=302 redirect=https://www.fl.ru/account/login/
+2026-04-18 16:46:16,259 | ERROR    | FreelanceBot | [FLruManager] setup_profile_full: авторизация не удалась
+2026-04-18 16:46:16,259 | INFO     | FreelanceBot | =======================================================
+2026-04-18 16:46:16,259 | INFO     | FreelanceBot |   Starting search cycle
+2026-04-18 16:46:16,259 | INFO     | FreelanceBot | =======================================================
+2026-04-18 16:46:16,259 | INFO     | FreelanceBot | [Kwork] Searching jobs...
+2026-04-18 16:46:16,259 | INFO     | FreelanceBot | [Kwork] Query: «python бот»
+2026-04-18 16:46:16,268 | INFO     | FreelanceBot | [FL.ru] Searching jobs...
+2026-04-18 16:46:16,268 | INFO     | FreelanceBot | [FL.ru] Query: «python бот»
+2026-04-18 16:46:16,924 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects?c=11&keyword=python%20%D0%B1%D0%BE%D1%82 "HTTP/1.1 200 OK"
+2026-04-18 16:46:17,051 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/projects/?kind=1&search=python%20%D0%B1%D0%BE%D1%82 "HTTP/1.1 200 OK"
+2026-04-18 16:46:18,116 | INFO     | FreelanceBot | [Kwork] Query: «telegram бот»
+2026-04-18 16:46:18,163 | INFO     | FreelanceBot | [FL.ru] Query: «telegram бот»
+2026-04-18 16:46:18,750 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/projects/?kind=1&search=telegram%20%D0%B1%D0%BE%D1%82 "HTTP/1.1 200 OK"
+2026-04-18 16:46:18,770 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects?c=11&keyword=telegram%20%D0%B1%D0%BE%D1%82 "HTTP/1.1 200 OK"
+2026-04-18 16:46:19,856 | INFO     | FreelanceBot | [FL.ru] Query: «автоматизация python»
+2026-04-18 16:46:19,962 | INFO     | FreelanceBot | [Kwork] Query: «автоматизация»
+2026-04-18 16:46:20,437 | INFO     | httpx | HTTP Request: GET https://www.fl.ru/projects/?kind=1&search=%D0%B0%D0%B2%D1%82%D0%BE%D0%BC%D0%B0%D1%82%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F%20python "HTTP/1.1 200 OK"
+2026-04-18 16:46:20,612 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects?c=11&keyword=%D0%B0%D0%B2%D1%82%D0%BE%D0%BC%D0%B0%D1%82%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F "HTTP/1.1 200 OK"
+2026-04-18 16:46:21,550 | INFO     | FreelanceBot | [FL.ru] Found 10 unique jobs across 3 queries
+2026-04-18 16:46:21,551 | INFO     | FreelanceBot | [FL.ru] No new relevant jobs this cycle
+2026-04-18 16:46:21,806 | INFO     | FreelanceBot | [Kwork] Found 17 unique jobs across 3 queries
+2026-04-18 16:46:21,869 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~8 ч | Ставка: 595 ₽/ч | Сложность: medium
+2026-04-18 16:46:23,038 | INFO     | FreelanceBot | [Kwork] New job [62/100]: "Создание бота программы на сайте по играм" | budget: 5000.0 RUB | bid=$4250
+2026-04-18 16:46:23,473 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:46:26,179 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:46:32,678 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:46:34,962 | INFO     | FreelanceBot | [LLM] Proposal [results] score=9.0/10 | lang=ru tone=neutral words=123 | psychology: ✅
+2026-04-18 16:46:35,324 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154214 "HTTP/1.1 302 Found"
+2026-04-18 16:46:35,811 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154214/view "HTTP/1.1 200 OK"
+2026-04-18 16:46:36,064 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3154214/want "HTTP/1.1 302 Found"
+2026-04-18 16:46:36,356 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154214/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:46:36,356 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3154214: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:46:36,357 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3154214
+2026-04-18 16:46:36,405 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=344) [results] 9.0/10 lang=ru tone=neutral
+2026-04-18 16:46:38,873 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~20 ч | Ставка: 1250 ₽/ч | Сложность: complex
+2026-04-18 16:46:39,840 | INFO     | FreelanceBot | [Kwork] New job [58/100]: "ТГ Бот с фильтром + БД + платежные системы + веб-панель" | budget: 25000.0 RUB | bid=$21250
+2026-04-18 16:46:40,485 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:46:42,528 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:46:53,766 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:46:55,786 | INFO     | FreelanceBot | [LLM] Proposal [question_led] score=8.0/10 | lang=ru tone=neutral words=169 | psychology: ✅
+2026-04-18 16:46:56,173 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154871 "HTTP/1.1 302 Found"
+2026-04-18 16:46:56,669 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154871/view "HTTP/1.1 200 OK"
+2026-04-18 16:46:56,953 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3154871/want "HTTP/1.1 302 Found"
+2026-04-18 16:46:57,301 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154871/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:46:57,301 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3154871: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:46:57,302 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3154871
+2026-04-18 16:46:57,351 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=345) [question_led] 8.0/10 lang=ru tone=neutral
+2026-04-18 16:46:58,880 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:46:58,933 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~20 ч | Ставка: 4000 ₽/ч | Сложность: complex
+2026-04-18 16:46:59,793 | INFO     | FreelanceBot | [Kwork] New job [58/100]: "ТГ Бот с фильтром + БД + платежные системы + веб-панель" | budget: 80000.0 RUB | bid=$68000
+2026-04-18 16:47:00,310 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:47:11,793 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:47:13,328 | INFO     | FreelanceBot | [LLM] Proposal [results] score=9.25/10 | lang=ru tone=neutral words=137 | psychology: ✅
+2026-04-18 16:47:13,679 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/2952287 "HTTP/1.1 302 Found"
+2026-04-18 16:47:14,182 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/2952287/view "HTTP/1.1 200 OK"
+2026-04-18 16:47:14,445 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/2952287/want "HTTP/1.1 302 Found"
+2026-04-18 16:47:14,776 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/2952287/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:47:14,777 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 2952287: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:47:14,777 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 2952287
+2026-04-18 16:47:14,830 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=346) [results] 9.25/10 lang=ru tone=neutral
+2026-04-18 16:47:15,239 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:47:17,826 | INFO     | FreelanceBot | [Kwork] ⏭ Пропускаю невыгодный заказ: "Помощь в чат боте вк в сенлер" | Низкая ставка 250 ₽/час (мин. 400 ₽/час) при 2 ч работы
+2026-04-18 16:47:17,858 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~24 ч | Ставка: 1250 ₽/ч | Сложность: complex
+2026-04-18 16:47:19,505 | INFO     | FreelanceBot | [Kwork] New job [82/100]: "Разработать Telegram-бота на Python (aiogram)" | budget: 30000.0 RUB | bid=$25500 ✅long_term_project
+2026-04-18 16:47:19,968 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:47:31,605 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:47:31,913 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:47:34,100 | INFO     | FreelanceBot | [LLM] Proposal [plan_first] score=9.25/10 | lang=ru tone=neutral words=141 | psychology: ✅
+2026-04-18 16:47:34,463 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3019072 "HTTP/1.1 302 Found"
+2026-04-18 16:47:34,932 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3019072/view "HTTP/1.1 200 OK"
+2026-04-18 16:47:35,216 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3019072/want "HTTP/1.1 302 Found"
+2026-04-18 16:47:35,463 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3019072/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:47:35,464 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3019072: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:47:35,464 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3019072
+2026-04-18 16:47:35,514 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=347) [plan_first] 9.25/10 lang=ru tone=neutral
+2026-04-18 16:47:37,123 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~2 ч | Ставка: 500 ₽/ч | Сложность: simple
+2026-04-18 16:47:37,773 | INFO     | FreelanceBot | [Kwork] New job [53/100]: "Создать 6 универсальных ботов на конструкторе botjet" | budget: 1000.0 RUB | bid=$850
+2026-04-18 16:47:38,145 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:47:47,965 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:47:49,741 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:47:51,659 | INFO     | FreelanceBot | [LLM] Proposal [results] score=8.0/10 | lang=ru tone=neutral words=127 | psychology: ✅
+2026-04-18 16:47:52,033 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/2803655 "HTTP/1.1 302 Found"
+2026-04-18 16:47:52,561 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/2803655/view "HTTP/1.1 200 OK"
+2026-04-18 16:47:52,830 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/2803655/want "HTTP/1.1 302 Found"
+2026-04-18 16:47:53,081 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/2803655/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:47:53,082 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 2803655: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:47:53,082 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 2803655
+2026-04-18 16:47:53,126 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=348) [results] 8.0/10 lang=ru tone=neutral
+2026-04-18 16:47:55,675 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~2 ч | Ставка: 1000 ₽/ч | Сложность: simple
+2026-04-18 16:47:55,936 | INFO     | FreelanceBot | [Kwork] New job [47/100]: "Создание чат бота на java" | budget: 2000.0 RUB | bid=$1700
+2026-04-18 16:47:56,496 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:04,323 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:48:08,541 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:10,256 | INFO     | FreelanceBot | [LLM] Proposal [empathetic] score=8.0/10 | lang=ru tone=neutral words=143 | psychology: ✅
+2026-04-18 16:48:10,616 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154974 "HTTP/1.1 302 Found"
+2026-04-18 16:48:11,114 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154974/view "HTTP/1.1 200 OK"
+2026-04-18 16:48:11,367 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3154974/want "HTTP/1.1 302 Found"
+2026-04-18 16:48:11,617 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154974/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:48:11,618 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3154974: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:48:11,618 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3154974
+2026-04-18 16:48:11,712 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=349) [empathetic] 8.0/10 lang=ru tone=neutral
+2026-04-18 16:48:14,167 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~2 ч | Ставка: 1500 ₽/ч | Сложность: simple
+2026-04-18 16:48:14,838 | INFO     | FreelanceBot | [Kwork] New job [51/100]: "Бот для MAX" | budget: 3000.0 RUB | bid=$2550
+2026-04-18 16:48:15,223 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:20,685 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:48:27,285 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:29,030 | INFO     | FreelanceBot | [LLM] Proposal [competitive] score=9.5/10 | lang=ru tone=neutral words=131 | psychology: ✅
+2026-04-18 16:48:29,380 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154125 "HTTP/1.1 302 Found"
+2026-04-18 16:48:29,876 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154125/view "HTTP/1.1 200 OK"
+2026-04-18 16:48:30,135 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3154125/want "HTTP/1.1 302 Found"
+2026-04-18 16:48:30,387 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3154125/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:48:30,387 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3154125: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:48:30,387 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3154125
+2026-04-18 16:48:30,435 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=350) [competitive] 9.5/10 lang=ru tone=neutral
+2026-04-18 16:48:33,643 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~6 ч | Ставка: 500 ₽/ч | Сложность: medium
+2026-04-18 16:48:33,882 | INFO     | FreelanceBot | [Kwork] New job [47/100]: "Реферальный ТГ бот" | budget: 3000.0 RUB | bid=$2550
+2026-04-18 16:48:34,247 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:37,041 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:48:43,998 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:46,145 | INFO     | FreelanceBot | [LLM] Proposal [results] score=9.0/10 | lang=ru tone=neutral words=113 | psychology: ✅
+2026-04-18 16:48:46,485 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3153982 "HTTP/1.1 302 Found"
+2026-04-18 16:48:46,984 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3153982/view "HTTP/1.1 200 OK"
+2026-04-18 16:48:47,240 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3153982/want "HTTP/1.1 302 Found"
+2026-04-18 16:48:47,553 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3153982/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:48:47,554 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3153982: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:48:47,554 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3153982
+2026-04-18 16:48:47,605 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=351) [results] 9.0/10 lang=ru tone=neutral
+2026-04-18 16:48:49,929 | INFO     | FreelanceBot | [Kwork] ⏭ Пропускаю невыгодный заказ: "Автоматизация действий для игры Андройд" | Низкая ставка 250 ₽/час (мин. 400 ₽/час) при 2 ч работы
+2026-04-18 16:48:49,950 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~20 ч | Ставка: 2000 ₽/ч | Сложность: complex
+2026-04-18 16:48:50,712 | INFO     | FreelanceBot | [Kwork] New job [61/100]: "Разработать Al-автоматизацию" | budget: 40000.0 RUB | bid=$34000
+2026-04-18 16:48:51,074 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:48:53,395 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:49:07,058 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:49:08,890 | INFO     | FreelanceBot | [LLM] Proposal [empathetic] score=7.5/10 | lang=ru tone=neutral words=180 | psychology: ✅
+2026-04-18 16:49:09,246 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3152908 "HTTP/1.1 302 Found"
+2026-04-18 16:49:09,748 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:49:09,857 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3152908/view "HTTP/1.1 200 OK"
+2026-04-18 16:49:10,123 | INFO     | httpx | HTTP Request: POST https://kwork.ru/projects/3152908/want "HTTP/1.1 302 Found"
+2026-04-18 16:49:10,397 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3152908/want "HTTP/1.1 404 Not Found"
+2026-04-18 16:49:10,397 | WARNING  | FreelanceBot | [Kwork] Want status=404 для 3152908: "\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u0430 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430"
+2026-04-18 16:49:10,397 | INFO     | FreelanceBot | [Kwork] Отклик сымитирован (реальная отправка не удалась) для 3152908
+2026-04-18 16:49:10,448 | INFO     | FreelanceBot | [Kwork] ✓ Proposal sent (proposal_id=352) [empathetic] 7.5/10 lang=ru tone=neutral
+2026-04-18 16:49:13,501 | INFO     | FreelanceBot | [Kwork] 💡 Трудозатраты: ~2 ч | Ставка: 25000 ₽/ч | Сложность: simple
+2026-04-18 16:49:14,221 | INFO     | FreelanceBot | [Kwork] New job [61/100]: "Разработать AI-автоматизацию для сбора и анализа данных" | budget: 50000.0 RUB | bid=$42500
+2026-04-18 16:49:14,671 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:49:26,102 | INFO     | httpx | HTTP Request: GET https://api.telegram.org/bot8271515822:AAEe0-5q0CW7b5ieDbls0mH5UESh7xFSThs/getUpdates?offset=1&timeout=1&limit=20 "HTTP/1.1 200 OK"
+2026-04-18 16:49:26,293 | INFO     | httpx | HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-18 16:49:28,429 | INFO     | FreelanceBot | [LLM] Proposal [plan_first] score=8.0/10 | lang=ru tone=neutral words=163 | psychology: ✅
+2026-04-18 16:49:28,784 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3152893 "HTTP/1.1 302 Found"
+2026-04-18 16:49:29,274 | INFO     | httpx | HTTP Request: GET https://kwork.ru/projects/3152893/view "HTTP/1.1 200 OK"
