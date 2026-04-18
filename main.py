@@ -3952,6 +3952,10 @@ class BasePlatform:
     def _record_success(self):
         self._consecutive_errors = 0
         self._status = self.STATUS_OK
+        try:
+            db.log_platform_status(self.name, self._status, "")
+        except Exception:
+            pass
 
     def _record_error(self, error: str):
         self._consecutive_errors += 1
