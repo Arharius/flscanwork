@@ -484,6 +484,23 @@ class Database:
         self.conn.commit()
         return c.lastrowid
 
+    def count_proposals_today(self, platform_name: str = None) -> int:
+        """v15.9: Сколько откликов уже отправлено сегодня (UTC). Для дневного rate-limit."""
+        from datetime import datetime as _dt
+        today_start = _dt.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        if platform_name:
+            row = self.conn.execute(
+                "SELECT COUNT(*) FROM proposals p JOIN jobs j ON p.job_id=j.id "
+                "WHERE p.status='sent' AND p.sent_at >= ? AND j.platform = ?",
+                (today_start, platform_name)
+            ).fetchone()
+        else:
+            row = self.conn.execute(
+                "SELECT COUNT(*) FROM proposals WHERE status='sent' AND sent_at >= ?",
+                (today_start,)
+            ).fetchone()
+        return row[0] if row else 0
+
     def record_outcome(self, proposal_id: int, outcome: str, notes: str = ""):
         """outcome: 'reply' | 'invited' | 'rejected' | 'no_response'"""
         self.conn.execute(
@@ -7156,6 +7173,39 @@ async def process_platform(platform: BasePlatform):
             cprof = proposal.get("client_profile", {})
 
             bid_amt = bid_info.get("bid") if bid_info else None
+
+            # v15.9: Anti-spam rate limit — Kwork блокирует отклики чаще чем 1/мин
+            # и публикует только N в сутки. Без этого аккаунт улетает в shadowban.
+            try:
+                _MAX_PER_DAY = int(os.environ.get("MAX_PROPOSALS_PER_DAY", "30"))
+                _MIN_GAP_SEC = int(os.environ.get("PROPOSAL_MIN_GAP_SEC", "75"))
+            except Exception:
+                _MAX_PER_DAY, _MIN_GAP_SEC = 30, 75
+
+            # Дневной лимит на платформу
+            try:
+                _today_count = db.count_proposals_today(platform.name)
+            except Exception:
+                _today_count = 0
+            if _today_count >= _MAX_PER_DAY:
+                logger.warning(
+                    f"[{platform.name}] 🛑 Дневной лимит {_MAX_PER_DAY} откликов достигнут "
+                    f"({_today_count}). Откладываю до завтра."
+                )
+                continue
+
+            # Минимальная пауза между отправками (защита от спам-фильтра Kwork)
+            _last_sent = getattr(platform, "_last_proposal_ts", 0)
+            _gap = time.time() - _last_sent
+            if _gap < _MIN_GAP_SEC:
+                _wait = _MIN_GAP_SEC - _gap
+                logger.info(
+                    f"[{platform.name}] ⏸ rate-limit: жду {_wait:.0f}s "
+                    f"перед следующим откликом ({_today_count}/{_MAX_PER_DAY} сегодня)"
+                )
+                await asyncio.sleep(_wait)
+            platform._last_proposal_ts = time.time()
+
             success = await platform.send_proposal(
                 job_data["external_id"], proposal_text, bid_amount=bid_amt,
                 job_title=job_data.get("title", ""),
