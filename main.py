@@ -11104,17 +11104,31 @@ class DesignReviewAgent(BaseAgent):
             if m:
                 data = json.loads(m.group())
                 scores = data.get("scores", {}) or {}
-                total = sum(int(v) for v in scores.values() if isinstance(v, (int, float)))
-                # Normalize 0-10 (max 5 criteria × 2 = 10)
-                design_score = float(total)
+                if not isinstance(scores, dict):
+                    scores = {}
+                # Whitelist criteria + clamp each to 0..2
+                _ALLOWED = ("visual_hierarchy", "conversion_structure",
+                            "copy_quality", "trust_signals", "cta_clarity")
+                clean_scores = {}
+                for k in _ALLOWED:
+                    v = scores.get(k, 0)
+                    try:
+                        clean_scores[k] = max(0, min(2, int(float(v))))
+                    except Exception:
+                        clean_scores[k] = 0
+                design_score = float(sum(clean_scores.values()))  # 0..10
                 ctx.spec["_design_review"] = {
                     "score_10": design_score,
-                    "scores": scores,
+                    "scores": clean_scores,
                     "verdict": data.get("verdict", "?"),
                 }
-                fixes = data.get("top_fixes", []) or []
+                raw_fixes = data.get("top_fixes", []) or []
+                # Type-safe: must be list of strings
+                if not isinstance(raw_fixes, list):
+                    raw_fixes = []
+                fixes = [str(f) for f in raw_fixes if isinstance(f, str) and f.strip()][:5]
                 if data.get("verdict") == "reject" or design_score < 7:
-                    for f in fixes[:5]:
+                    for f in fixes:
                         issues.append(f"[DESIGN-LLM] {f}")
                     ctx.review_score = int(min(ctx.review_score, design_score))
                     ctx.review_approved = False
@@ -11205,6 +11219,19 @@ class SpecComplianceAgent(BaseAgent):
                 return ctx
             data = json.loads(m.group())
             items = data.get("items", []) or []
+            # Type-safe filter
+            items = [it for it in items if isinstance(it, dict) and it.get("status") in ("implemented","partial","missing")]
+            # v15.8 fail-closed: if LLM returned <50% of features back, treat as
+            # invalid response and force a fix iteration (don't silently approve).
+            if len(items) < max(1, len(features) // 2):
+                logger.warning(
+                    f"[{self.name}] ⚠️ LLM returned only {len(items)}/{len(features)} items — fail-closed"
+                )
+                ctx.review_approved = False
+                ctx.review_notes = ([
+                    f"[SPEC] LLM-проверка вернула только {len(items)}/{len(features)} пунктов — повторите проверку всех функций ТЗ"
+                ] + (ctx.review_notes or []))
+                return ctx
             implemented = [i for i in items if i.get("status") == "implemented"]
             partial = [i for i in items if i.get("status") == "partial"]
             missing = [i for i in items if i.get("status") == "missing"]
@@ -14481,9 +14508,12 @@ class OrderOrchestrator:
     AUTO_DELIVER_MIN_SECURITY = 8.0
 
     def _is_converged(self, ctx: AgentContext) -> bool:
+        # v15.8: also require review_approved so SpecCompliance / DesignReview /
+        # CrossProvider gates are real stop-criteria, not advisory.
         return (ctx.test_passed
                 and ctx.review_score >= self.QUALITY_TARGET
-                and ctx.security_score >= self.SECURITY_TARGET)
+                and ctx.security_score >= self.SECURITY_TARGET
+                and ctx.review_approved)
 
     def _iteration_summary(self, ctx: AgentContext, i: int) -> str:
         return (
@@ -14637,6 +14667,7 @@ class OrderOrchestrator:
                 needs_fix = (not ctx.test_passed
                              or not ctx.security_passed
                              or ctx.review_score < self.QUALITY_TARGET
+                             or not ctx.review_approved
                              or (i == 0 and not ctx.sandbox_passed))
                 if needs_fix and i < max_iters - 1:
                     ctx = await SmartAutoFixerAgent().run(ctx)
