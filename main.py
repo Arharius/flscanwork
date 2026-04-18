@@ -10927,14 +10927,19 @@ class CrossProviderVerifierAgent(BaseAgent):
             ctx.cross_notes = [str(n)[:200] for n in (data.get("critical_issues") or [])][:5]
             verdict = str(data.get("verdict", "fix"))[:10]
 
-            # Disagreement threshold: 1.5 pts → trust pessimist
-            if primary_score > 0 and ctx.cross_score < primary_score - 1.5:
+            # Symmetric disagreement: any gap >1.5 OR verdict=reject → enforce
+            # min(primary, cross) so we always trust the pessimist
+            disagree = (primary_score > 0
+                        and abs(primary_score - ctx.cross_score) > 1.5)
+            rejected = verdict == "reject"
+            if disagree or rejected:
+                lower = min(primary_score, ctx.cross_score)
                 logger.warning(
-                    f"[{self.name}] ⚠️ DISAGREEMENT: primary={primary_score:.0f} "
-                    f"cross={ctx.cross_score:.1f} → trusting lower score, "
-                    f"forcing additional fix iteration"
+                    f"[{self.name}] ⚠️ ENFORCED: primary={primary_score:.0f} "
+                    f"cross={ctx.cross_score:.1f} verdict={verdict} → "
+                    f"score capped at {lower:.0f}, forcing fix iteration"
                 )
-                ctx.review_score = int(min(ctx.review_score, ctx.cross_score))
+                ctx.review_score = int(lower)
                 ctx.review_approved = False
                 ctx.review_notes = (
                     [f"[CROSS-CHECK]: {n}" for n in ctx.cross_notes]
