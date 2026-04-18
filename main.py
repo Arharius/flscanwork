@@ -9130,6 +9130,80 @@ class DocFetcher:
             return ""
         return "Актуальная документация пакетов:\n" + "\n".join(snippets)
 
+    # v15.8: GitHub examples retrieval — top-rated real-world implementations
+    _examples_cache: Dict[str, str] = {}
+
+    # Curated search queries for project types (better than naive substring search)
+    _TYPE_QUERIES: Dict[str, str] = {
+        "telegram_bot":   "telegram bot python aiogram language:python stars:>200",
+        "viber_bot":      "viber bot python language:python stars:>30",
+        "discord_bot":    "discord bot python language:python stars:>200",
+        "whatsapp_bot":   "whatsapp bot python language:python stars:>50",
+        "web_scraper":    "web scraper httpx beautifulsoup language:python stars:>100",
+        "rest_api":       "fastapi rest api production language:python stars:>500",
+        "payment_bot":    "telegram payment yookassa stripe language:python stars:>50",
+        "data_analysis":  "pandas data analysis report language:python stars:>200",
+        "automation":     "apscheduler automation cron language:python stars:>100",
+        "microservice":   "fastapi microservice docker language:python stars:>300",
+        "web_app":        "flask fastapi sqlalchemy language:python stars:>200",
+    }
+
+    @classmethod
+    async def fetch_github_examples(cls, ptype: str, max_repos: int = 3) -> str:
+        """v15.8: Top-3 real-world GitHub repos for project type.
+
+        Returns repo names + first python code block from README, so DeveloperAgent
+        sees actual battle-tested patterns from popular projects (not just
+        training-data knowledge).
+        """
+        query = cls._TYPE_QUERIES.get(ptype, "")
+        if not query:
+            return ""
+        cache_key = f"gh_ex::{ptype}::{max_repos}"
+        if cache_key in cls._examples_cache:
+            return cls._examples_cache[cache_key]
+
+        token = os.getenv("GITHUB_PERSONAL_ACCESS_TOKEN", "")
+        headers = {"Accept": "application/vnd.github+json"}
+        if token:
+            headers["Authorization"] = f"token {token}"
+
+        try:
+            async with httpx.AsyncClient(timeout=8.0, headers=headers) as client:
+                r = await client.get(
+                    "https://api.github.com/search/repositories",
+                    params={"q": query, "sort": "stars", "order": "desc",
+                            "per_page": max_repos},
+                )
+                if r.status_code != 200:
+                    return ""
+                items = r.json().get("items", [])[:max_repos]
+                if not items:
+                    return ""
+
+                blocks = []
+                for repo_data in items:
+                    full = repo_data.get("full_name", "")
+                    stars = repo_data.get("stargazers_count", 0)
+                    desc = (repo_data.get("description") or "")[:120]
+                    snippet = await cls._fetch_readme_snippet(full)
+                    if snippet:
+                        blocks.append(
+                            f"### {full} ({stars}⭐)\n{desc}\n{snippet}"
+                        )
+                    else:
+                        blocks.append(f"### {full} ({stars}⭐)\n{desc}")
+
+                result = (
+                    "Реальные топ-проекты с GitHub (используй паттерны):\n\n"
+                    + "\n\n".join(blocks)
+                )[:3500]
+                cls._examples_cache[cache_key] = result
+                return result
+        except Exception as e:
+            logger.debug(f"[DocFetcher.fetch_github_examples] {e}")
+            return ""
+
 
 doc_fetcher = DocFetcher()
 
@@ -10960,6 +11034,211 @@ class CrossProviderVerifierAgent(BaseAgent):
                 )
         except Exception as e:
             logger.debug(f"[{self.name}] cross-check error: {e}")
+        return ctx
+
+
+# ── DESIGN REVIEW AGENT (v15.8) ──────────────────────────────
+
+class DesignReviewAgent(BaseAgent):
+    """LLM-based design critic for landing pages.
+
+    Performs:
+      1. Hard semantic checks: viewport meta, semantic tags, CTA buttons,
+         alt attrs, mobile-first signals, schema.org/OG tags.
+      2. LLM design critique: visual hierarchy, conversion structure,
+         copy quality, trust signals, CTAs.
+    Failures → review_score reduced + actionable notes prepended.
+    """
+    name = "DesignReviewAgent"
+
+    async def run(self, ctx: AgentContext) -> AgentContext:
+        if ctx.project_type != "landing_page":
+            return ctx
+        html = ctx.code_files.get(ctx.main_file, "") or ""
+        if len(html) < 200:
+            return ctx
+
+        h = html.lower()
+        issues: List[str] = []
+
+        # Hard semantic checks
+        if "viewport" not in h:
+            issues.append("[DESIGN] нет <meta name='viewport'> — поломка на мобильных")
+        if h.count("<button") + h.count("class=\"cta") + h.count("'cta") + h.count("href=\"#") < 1 and "buy" not in h and "купить" not in h and "заказать" not in h:
+            issues.append("[DESIGN] не видно явного CTA (call-to-action)")
+        if "<img" in h and "alt=" not in h:
+            issues.append("[DESIGN] <img> без alt — плохо для SEO/доступности")
+        if not any(t in h for t in ("<header", "<main", "<section", "<footer", "<nav")):
+            issues.append("[DESIGN] нет семантических тегов (header/main/section/footer)")
+        if "og:" not in h and "twitter:" not in h:
+            issues.append("[DESIGN] нет OG/Twitter мета-тегов — плохой шаринг в соцсетях")
+        if h.count("<h1") == 0:
+            issues.append("[DESIGN] нет <h1> — критично для SEO и иерархии")
+        elif h.count("<h1") > 1:
+            issues.append("[DESIGN] несколько <h1> — должен быть ровно один")
+
+        # LLM critique (textual analysis of HTML structure)
+        excerpt = html[:6000]
+        system = (
+            "Ты — арт-директор лендинг-агентства мирового уровня (Awwwards-tier). "
+            "Оцени конверсионный потенциал лендинга по HTML-структуре. "
+            "Возвращай ТОЛЬКО JSON без markdown."
+        )
+        user = (
+            f"=== HTML лендинга (первые 6000 символов) ===\n{excerpt}\n\n"
+            "Оцени по 5 критериям (каждый 0-2):\n"
+            "1. visual_hierarchy — иерархия заголовков, контраст, акценты\n"
+            "2. conversion_structure — есть ли hero, проблема, решение, CTA, отзывы\n"
+            "3. copy_quality — заголовки цепляют? выгоды конкретны?\n"
+            "4. trust_signals — отзывы, кейсы, гарантии, цифры\n"
+            "5. cta_clarity — кнопки видны? призыв ясен? нет трения\n\n"
+            "Формат:\n"
+            '{"scores":{"visual_hierarchy":2,"conversion_structure":1,'
+            '"copy_quality":2,"trust_signals":0,"cta_clarity":2},'
+            '"verdict":"approve|reject","top_fixes":["...","..."]}'
+        )
+        try:
+            raw = await self._llm(system, user, max_tokens=600, temperature=0.2,
+                                  ctx=ctx, phase="review")
+            m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+            if m:
+                data = json.loads(m.group())
+                scores = data.get("scores", {}) or {}
+                total = sum(int(v) for v in scores.values() if isinstance(v, (int, float)))
+                # Normalize 0-10 (max 5 criteria × 2 = 10)
+                design_score = float(total)
+                ctx.spec["_design_review"] = {
+                    "score_10": design_score,
+                    "scores": scores,
+                    "verdict": data.get("verdict", "?"),
+                }
+                fixes = data.get("top_fixes", []) or []
+                if data.get("verdict") == "reject" or design_score < 7:
+                    for f in fixes[:5]:
+                        issues.append(f"[DESIGN-LLM] {f}")
+                    ctx.review_score = int(min(ctx.review_score, design_score))
+                    ctx.review_approved = False
+                    logger.warning(
+                        f"[{self.name}] ⚠️ Design score {design_score}/10 → "
+                        f"capped review_score, forcing fix"
+                    )
+                else:
+                    logger.info(
+                        f"[{self.name}] ✅ Design approved {design_score}/10"
+                    )
+        except Exception as e:
+            logger.debug(f"[{self.name}] LLM critique error: {e}")
+
+        if issues:
+            ctx.review_notes = issues + (ctx.review_notes or [])
+            # Hard semantic issues alone reduce score modestly
+            if not ctx.spec.get("_design_review", {}).get("verdict") == "reject":
+                ctx.review_score = max(0, ctx.review_score - min(2, len(issues) // 3))
+                if len(issues) >= 4:
+                    ctx.review_approved = False
+        return ctx
+
+
+# ── SPEC COMPLIANCE GATE (v15.8) ─────────────────────────────
+
+class SpecComplianceAgent(BaseAgent):
+    """Anti-hallucination gate at TЗ→code level.
+
+    Takes EVERY feature from ctx.spec.features + ctx.detailed_spec, then asks
+    the LLM to inspect the generated code and classify each as:
+       implemented | partial | missing
+    If anything is missing/partial → review_approved=False, missing items
+    prepended to ctx.review_notes with [SPEC] marker so SmartAutoFixer
+    surgically fills the gaps in the next iteration.
+    """
+    name = "SpecComplianceAgent"
+
+    async def run(self, ctx: AgentContext) -> AgentContext:
+        features = list(ctx.spec.get("features", []) or [])
+        # Also include must-have items from detailed_spec if present
+        for k in ("must_have", "deliverables", "acceptance_criteria"):
+            extra = ctx.detailed_spec.get(k) if hasattr(ctx, "detailed_spec") else None
+            if isinstance(extra, list):
+                features.extend(str(x) for x in extra)
+        features = [f for f in features if isinstance(f, str) and len(f.strip()) > 3]
+        # Deduplicate while preserving order
+        seen = set()
+        features = [f for f in features if not (f.lower() in seen or seen.add(f.lower()))][:15]
+
+        if not features:
+            ctx.spec["_compliance"] = {"status": "skipped", "reason": "no features extracted"}
+            return ctx
+
+        code = ctx.code_files.get(ctx.main_file, "")
+        if not code or len(code) < 50:
+            return ctx
+
+        # Build full code context (main + supporting files, capped)
+        all_code_parts = [f"=== {ctx.main_file} ===\n{code[:4000]}"]
+        for fname, fcontent in list(ctx.code_files.items())[:4]:
+            if fname != ctx.main_file and fcontent:
+                all_code_parts.append(f"=== {fname} ===\n{fcontent[:1500]}")
+        full_code = "\n\n".join(all_code_parts)[:8000]
+
+        feature_lines = "\n".join(f"{i+1}. {f}" for i, f in enumerate(features))
+        system = (
+            "Ты — строгий QA-инженер. Твоя задача — проверить, что КАЖДАЯ функция из "
+            "технического задания реально реализована в коде. Будь дотошным: если "
+            "функция упомянута в комментарии но не работает — это 'partial'. "
+            "Если её нет вообще — 'missing'. Возвращай ТОЛЬКО JSON без markdown."
+        )
+        user = (
+            f"=== ТРЕБУЕМЫЕ ФУНКЦИИ ИЗ ТЗ ===\n{feature_lines}\n\n"
+            f"=== КОД ===\n{full_code}\n\n"
+            "Для КАЖДОЙ функции верни статус. Пример ответа:\n"
+            '{"items":[{"feature":"авторизация","status":"implemented","note":""},'
+            '{"feature":"экспорт CSV","status":"missing","note":"нет функции export"}],'
+            '"score":7}\n'
+            "Где status ∈ implemented|partial|missing, score = % реализованных × 10."
+        )
+
+        try:
+            raw = await self._llm(system, user, max_tokens=900, temperature=0.0,
+                                  ctx=ctx, phase="review")
+            m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+            if not m:
+                return ctx
+            data = json.loads(m.group())
+            items = data.get("items", []) or []
+            implemented = [i for i in items if i.get("status") == "implemented"]
+            partial = [i for i in items if i.get("status") == "partial"]
+            missing = [i for i in items if i.get("status") == "missing"]
+
+            ctx.spec["_compliance"] = {
+                "total": len(items),
+                "implemented": len(implemented),
+                "partial": len(partial),
+                "missing": len(missing),
+                "score": float(data.get("score", 0) or 0),
+            }
+
+            if missing or partial:
+                gap_notes = []
+                for it in missing:
+                    gap_notes.append(f"[SPEC-MISSING] {it.get('feature','?')}: {it.get('note','требуется реализация')}")
+                for it in partial:
+                    gap_notes.append(f"[SPEC-PARTIAL] {it.get('feature','?')}: {it.get('note','реализовано не полностью')}")
+                ctx.review_notes = gap_notes + (ctx.review_notes or [])
+                ctx.review_approved = False
+                # Cap review_score by compliance %
+                comp_score = (len(implemented) / len(items)) * 10 if items else 0
+                ctx.review_score = int(min(ctx.review_score, comp_score))
+                logger.warning(
+                    f"[{self.name}] ⚠️ SPEC GAPS: {len(missing)} missing, "
+                    f"{len(partial)} partial / {len(items)} total → "
+                    f"score capped at {ctx.review_score}/10, forcing fix"
+                )
+            else:
+                logger.info(
+                    f"[{self.name}] ✅ All {len(items)} ТЗ features implemented"
+                )
+        except Exception as e:
+            logger.debug(f"[{self.name}] error: {e}")
         return ctx
 
 
@@ -12825,12 +13104,125 @@ class SandboxRunnerAgent:
                 ctx.sandbox_passed = False
                 ctx.sandbox_output = f"RUNTIME: {combined}"
                 logger.warning(f"[{self.name}] Fatal runtime error")
+                return ctx
+
+            ctx.sandbox_passed = True
+            ctx.sandbox_output = f"PASSED (exit={run_result.returncode})\n{combined}"
+
+            # v15.8: For web/api types — actually launch the process for ~10s
+            # and probe HTTP endpoints to confirm it serves traffic.
+            web_types = {"rest_api", "web_app", "microservice", "fastapi"}
+            looks_web = (
+                ptype in web_types
+                or "fastapi" in code.lower()
+                or "uvicorn" in code.lower()
+                or "flask" in code.lower()
+                or "aiohttp.web" in code.lower()
+            )
+            if looks_web:
+                probe_result = await self._http_probe(tmpdir, src_path, env)
+                ctx.sandbox_output += f"\n\n[HTTP PROBE]\n{probe_result['log']}"
+                if probe_result["served"]:
+                    logger.info(
+                        f"[{self.name}] ✓ HTTP probe passed "
+                        f"({probe_result['endpoints_ok']} endpoints OK)"
+                    )
+                else:
+                    # HTTP probe failure for a web project = not really passing
+                    ctx.sandbox_passed = False
+                    logger.warning(
+                        f"[{self.name}] ⚠️ HTTP probe failed: {probe_result['log'][:120]}"
+                    )
             else:
-                ctx.sandbox_passed = True
-                ctx.sandbox_output = f"PASSED (exit={run_result.returncode})\n{combined}"
                 logger.info(f"[{self.name}] ✓ Sandbox passed")
 
         return ctx
+
+    async def _http_probe(self, tmpdir: str, src_path: str, env: dict) -> dict:
+        """v15.8: Boot the deliverable as a real process, hit endpoints, kill it."""
+        import subprocess, sys, signal, socket, time
+        # Find a free port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.close()
+
+        env = dict(env)
+        env["PORT"] = str(port)
+        env["HOST"] = "127.0.0.1"
+
+        proc = None
+        log_lines = []
+        endpoints_ok = 0
+        served = False
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, src_path],
+                cwd=tmpdir, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True,
+            )
+            # Wait up to 15s for the port to start accepting connections
+            deadline = time.time() + 15
+            up = False
+            while time.time() < deadline:
+                if proc.poll() is not None:
+                    log_lines.append(f"process exited early code={proc.returncode}")
+                    break
+                try:
+                    s = socket.create_connection(("127.0.0.1", port), timeout=0.5)
+                    s.close()
+                    up = True
+                    break
+                except Exception:
+                    await asyncio.sleep(0.4)
+
+            if up:
+                served = True
+                # Probe a few likely endpoints
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    for path in ("/", "/health", "/docs", "/api", "/healthz"):
+                        try:
+                            r = await client.get(f"http://127.0.0.1:{port}{path}")
+                            if r.status_code < 500:
+                                endpoints_ok += 1
+                                log_lines.append(
+                                    f"GET {path} → {r.status_code}"
+                                )
+                        except Exception:
+                            pass
+                # If nothing responded with <500 → still mark not served
+                if endpoints_ok == 0:
+                    served = False
+                    log_lines.append("no endpoint responded with <500")
+            else:
+                log_lines.append(f"port {port} never opened in 15s")
+        except Exception as e:
+            log_lines.append(f"probe exception: {e}")
+        finally:
+            if proc and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=2)
+                    except Exception:
+                        proc.kill()
+                except Exception:
+                    pass
+            if proc:
+                try:
+                    out, _ = proc.communicate(timeout=1)
+                    if out:
+                        tail = out[-400:]
+                        log_lines.append(f"-- stdout/stderr tail --\n{tail}")
+                except Exception:
+                    pass
+
+        return {
+            "served": served,
+            "endpoints_ok": endpoints_ok,
+            "log": "\n".join(log_lines)[:1200],
+        }
 
 
 class MultiCriticAgent:
@@ -14161,6 +14553,17 @@ class OrderOrchestrator:
                         f"[Orchestrator] 📚 Docs + README examples fetched for: {deps[:6]}"
                     )
 
+            # v15.8: GitHub examples retrieval — top-3 real-world repos for this type
+            try:
+                gh_examples = await DocFetcher.fetch_github_examples(ptype, max_repos=3)
+                if gh_examples:
+                    ctx.doc_context = (ctx.doc_context + "\n\n" + gh_examples)[:5500]
+                    logger.info(
+                        f"[Orchestrator] 🐙 GitHub top-3 examples injected for [{ptype}]"
+                    )
+            except Exception as _e:
+                logger.debug(f"[Orchestrator] GitHub examples skipped: {_e}")
+
             # v10.2: Reset Lyapunov monitor for new job (fresh convergence tracking)
             lyapunov_monitor.reset()
 
@@ -14247,6 +14650,13 @@ class OrderOrchestrator:
                 # v15.7: Independent second-opinion from opposite LLM provider
                 # — catches inflated self-grades; forces extra fix iter on disagreement
                 ctx = await CrossProviderVerifierAgent().run(ctx)
+
+                # v15.8: Spec Compliance Gate — anti-hallucination ТЗ→code check
+                ctx = await SpecComplianceAgent().run(ctx)
+
+                # v15.8: Design review for landing pages (HTML semantic + LLM critique)
+                if ptype == "landing_page":
+                    ctx = await DesignReviewAgent().run(ctx)
 
                 # v10.0: Feed failures to SelfRepair for pattern detection
                 if not ctx.test_passed:
