@@ -2,16 +2,24 @@ services:
   - type: web
     name: freelancebot
     runtime: python
+    plan: starter            # $7/mo — нужен для Persistent Disk и работы 24/7 без сна
+    region: frankfurt        # ближе к Москве — меньше latency к Kwork/FL.ru
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
-    plan: free
+    healthCheckPath: /health
+    autoDeploy: true         # автодеплой при push в main на GitHub
+    disk:
+      name: freelancebot-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1              # для jobs.db, deliverables/, backups/
     envVars:
+      # ── LLM провайдеры ──
       - key: DEEPSEEK_API_KEY
         sync: false
-      - key: TELEGRAM_BOT_TOKEN
+      - key: OPENROUTER_API_KEY
         sync: false
-      - key: TELEGRAM_CHAT_ID
-        sync: false
+
+      # ── Биржи ──
       - key: KWORK_USERNAME
         sync: false
       - key: KWORK_PASSWORD
@@ -22,15 +30,25 @@ services:
         sync: false
       - key: FL_PASSWORD
         sync: false
-      - key: RENDER_API_KEY
+      - key: FL_SESSION_COOKIE
         sync: false
-      - key: VERCEL_TOKEN
+
+      # ── Telegram (опционально) ──
+      - key: TELEGRAM_BOT_TOKEN
         sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+
+      # ── GitHub backup ──
+      - key: GITHUB_PERSONAL_ACCESS_TOKEN
+        sync: false
+
+      # ── Поведение ──
       - key: LOG_LEVEL
         value: INFO
       - key: SEARCH_INTERVAL_MINUTES
         value: "20"
       - key: MIN_BUDGET
         value: "50"
-      - key: PORT
-        value: "8080"
+      - key: PYTHONUNBUFFERED
+        value: "1"

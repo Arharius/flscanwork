@@ -64,6 +64,14 @@ import bot_state as _bot_state
 
 # Base directory for data files (absolute path)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# v15.8: Render/VPS support — write data (DB, deliverables, backups) to a
+# separate persistent directory if DATA_DIR is set. Falls back to BASE_DIR
+# locally so nothing changes during dev on Replit.
+DATA_DIR = os.getenv("DATA_DIR", BASE_DIR)
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except Exception:
+    DATA_DIR = BASE_DIR
 
 # ============================================================
 # CONFIGURATION
@@ -96,7 +104,7 @@ def _detect_llm_provider() -> tuple:
 
 @dataclass
 class Config:
-    DATABASE_URL: str = field(default_factory=lambda: os.getenv("SQLITE_DB", os.path.join(BASE_DIR, "jobs.db")))
+    DATABASE_URL: str = field(default_factory=lambda: os.getenv("SQLITE_DB", os.path.join(DATA_DIR, "jobs.db")))
     LOG_LEVEL: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     OPENROUTER_API_KEY: str = field(default_factory=lambda: _detect_llm_provider()[0])
     LLM_MODEL: str = field(default_factory=lambda: _detect_llm_provider()[2])
@@ -10965,7 +10973,7 @@ class PackagerAgent(BaseAgent):
         ptype = ctx.project_type
         logger.info(f"[{self.name}] Packaging [{ptype}] deliverable...")
         safe = _re.sub(r'[^a-zA-Z0-9_-]', '_', ctx.job.get("external_id", "job"))
-        out = os.path.join(BASE_DIR, "deliverables", safe)
+        out = os.path.join(DATA_DIR, "deliverables", safe)
         os.makedirs(out, exist_ok=True)
 
         # Write all generated files
@@ -15411,9 +15419,9 @@ async def main():
         try:
             import shutil, glob
             from datetime import datetime as _dt
-            backup_dir = os.path.join(BASE_DIR, "backups")
+            backup_dir = os.path.join(DATA_DIR, "backups")
             os.makedirs(backup_dir, exist_ok=True)
-            src = os.path.join(BASE_DIR, "jobs.db")
+            src = os.path.join(DATA_DIR, "jobs.db")
             if not os.path.exists(src):
                 return
             stamp = _dt.utcnow().strftime("%Y%m%d_%H%M%S")
