@@ -42,3 +42,7 @@ deploymentTarget = "vm"
 build = ["npm", "run", "build"]
 publicDir = "dist"
 run = ["python", "main.py"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000

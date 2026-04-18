@@ -5833,9 +5833,15 @@ class FLruPlatform(BasePlatform):
         return jobs or self._mock_jobs((0, 1))
 
     async def send_proposal(self, job_external_id: str, text: str, bid_amount=None, **kwargs) -> bool:
-        if fl_manager.is_configured and fl_manager.is_authenticated:
+        if not fl_manager.is_configured:
+            logger.warning(f"[{self.name}] FL.ru не настроен (нет FL_SESSION_COOKIE и логина) — отклик пропущен")
+            return False
+        if not fl_manager.is_authenticated:
+            logger.info(f"[{self.name}] FL.ru: повторная попытка авторизации перед отправкой отклика...")
+            await fl_manager._login()
+        if fl_manager.is_authenticated:
             return await fl_manager.send_proposal(job_external_id, text, bid_amount=bid_amount)
-        logger.warning(f"[{self.name}] FL.ru not authenticated — proposal NOT sent for {job_external_id}")
+        logger.warning(f"[{self.name}] FL.ru: авторизация не удалась — отклик НЕ отправлен для {job_external_id}")
         return False
 
 
@@ -14245,7 +14251,12 @@ def print_startup_banner():
         api_status = "⚠️  Ключ LLM не найден — используются шаблоны"
     tg_status  = "✅ Telegram configured" if config.TELEGRAM_BOT_TOKEN else "ℹ️  No Telegram — log-only mode"
     kw_status  = f"✅ Продавец: {config.KWORK_USERNAME}" if kwork_manager.is_configured else "ℹ️  Нет KWORK_USERNAME/KWORK_PASSWORD"
-    fl_status  = f"⚙️  Настроен: {config.FL_USERNAME} (авторизация при старте)" if fl_manager.is_configured else "ℹ️  Нет FL_USERNAME/FL_PASSWORD"
+    if config.FL_SESSION_COOKIE:
+        fl_status = "✅ FL.ru: FL_SESSION_COOKIE задан (сессия восстановлена)"
+    elif fl_manager.is_configured:
+        fl_status = f"⚙️  FL.ru: Настроен через логин {config.FL_USERNAME} (авторизация при старте)"
+    else:
+        fl_status = "ℹ️  FL.ru: Нет FL_SESSION_COOKIE и FL_USERNAME/FL_PASSWORD"
     platform_names = ", ".join(p.name for p in PLATFORMS)
     learn_summary = db.get_learning_summary()
     learn_status = (
