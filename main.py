@@ -4331,39 +4331,31 @@ class KworkPlatform(BasePlatform):
         return jobs
 
     async def send_proposal(self, job_external_id: str, text: str, bid_amount=None, **kwargs) -> bool:
-        """Отправляет реальный отклик на проект Kwork через сессию."""
+        """
+        Отправляет реальный отклик на проект Kwork через сессию.
+        Правильный endpoint: POST /api/offer/createoffer (FormData)
+        Поля: wantId, offerType=custom, description, kwork_duration, kwork_price, kwork_name
+        CSRF: берётся из hidden input name='csrftoken' на странице /new_offer?project={pid}
+        """
         session_cookie = config.KWORK_SESSION_COOKIE
         if not session_cookie:
-            logger.warning(f"[{self.name}] KWORK_SESSION_COOKIE не задан — отклик сымитирован")
-            await asyncio.sleep(0.5)
-            return True
-
-        # Получаем URL проекта из БД
-        project_url = None
-        try:
-            import sqlite3 as _sq
-            _conn = _sq.connect("jobs.db")
-            row = _conn.execute("SELECT url FROM jobs WHERE external_id=?", (job_external_id,)).fetchone()
-            project_url = row[0] if row else None
-            _conn.close()
-        except Exception:
-            pass
-
-        # Моковые заказы имеют формат Kwork_{ts}_{idx}_{rand} (4 части), реальные — Kwork_{pid} (2 части)
-        is_mock = len(job_external_id.split("_")) > 2
-        if not project_url or "example" in project_url or not project_url.startswith("https://kwork.ru") or is_mock:
-            logger.info(f"[{self.name}] Моковый/тестовый заказ — отклик сымитирован ({job_external_id})")
-            await asyncio.sleep(0.3)
-            return True
-
-        import re as _re2
-        m = _re2.search(r'/projects/(\d+)', project_url)
-        if not m:
-            logger.warning(f"[{self.name}] Не удалось извлечь pid из {project_url}")
+            logger.warning(f"[{self.name}] KWORK_SESSION_COOKIE не задан — отклик пропущен")
             return False
-        pid = m.group(1)
 
-        # Парсим куки из строки
+        # Моковые заказы (Kwork_{ts}_{idx}_{rand} — 4 части)
+        is_mock = len(job_external_id.split("_")) > 2
+        if is_mock:
+            logger.info(f"[{self.name}] Моковый заказ — отклик сымитирован ({job_external_id})")
+            return True
+
+        # Извлекаем pid из external_id = "Kwork_{pid}"
+        parts = job_external_id.split("_", 1)
+        if len(parts) != 2 or not parts[1].isdigit():
+            logger.warning(f"[{self.name}] Не удалось извлечь pid из {job_external_id}")
+            return False
+        pid = parts[1]
+
+        # Парсим куки
         cookies: dict = {}
         for part in session_cookie.split(";"):
             part = part.strip()
@@ -4371,74 +4363,131 @@ class KworkPlatform(BasePlatform):
                 k, v = part.split("=", 1)
                 cookies[k.strip()] = v.strip()
 
+        import re as _re2
+
         base_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-            "Referer": f"https://kwork.ru/projects/{pid}",
         }
 
         try:
-            # Step 1: Get project page with follow_redirects to get final URL + CSRF
-            async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as client_r:
-                r1 = await client_r.get(project_url, headers=base_headers, cookies=cookies)
-                # If redirected to login page — session expired
-                if "login" in str(r1.url) or "account/login" in str(r1.url):
-                    logger.warning(f"[{self.name}] Сессия истекла — нужно обновить KWORK_SESSION_COOKIE")
-                    _bot_state.set_kwork_cookie_valid(False, "Сессия истекла — нужно обновить KWORK_SESSION_COOKIE в Secrets")
-                    return False
-                if r1.status_code != 200:
-                    logger.warning(f"[{self.name}] Проект {pid} недоступен (status={r1.status_code})")
-                    return True  # Не блокируем
-
-            csrf_m = _re2.search(
-                r'(?:csrf[Tt]oken|X-CSRF-TOKEN|_token)["\']?\s*[=:]\s*["\']([a-zA-Z0-9_/+=-]{20,})["\']',
-                r1.text
-            )
-            csrf = csrf_m.group(1) if csrf_m else ""
-
-            # Step 2: Submit want — don't follow redirects so we can check Location header
-            async with httpx.AsyncClient(timeout=25.0, follow_redirects=False) as client_p:
-                r2 = await client_p.post(
-                    f"https://kwork.ru/projects/{pid}/want",
-                    json={"comment": text, "csrf": csrf},
-                    headers={**base_headers,
-                              "Content-Type": "application/json",
-                              "X-Requested-With": "XMLHttpRequest",
-                              "X-Csrf-Token": csrf},
+            # ── Step 1: GET /new_offer?project={pid} — страница подачи заявки ──
+            offer_page_url = f"https://kwork.ru/new_offer?project={pid}"
+            async with httpx.AsyncClient(timeout=25.0, follow_redirects=True) as cl:
+                r1 = await cl.get(
+                    offer_page_url,
+                    headers={**base_headers, "Referer": f"https://kwork.ru/projects/{pid}/view"},
                     cookies=cookies,
                 )
-                location = r2.headers.get("location", "")
+                if "login" in str(r1.url) or "account/login" in str(r1.url):
+                    logger.warning(f"[{self.name}] Сессия истекла — обновите KWORK_SESSION_COOKIE")
+                    _bot_state.set_kwork_cookie_valid(False, "Сессия истекла — обновите KWORK_SESSION_COOKIE в Secrets")
+                    return False
+                if r1.status_code != 200:
+                    logger.warning(f"[{self.name}] /new_offer недоступна (status={r1.status_code})")
+                    return False
+
+            # ── CSRF: ищем <input type="hidden" name="csrftoken" value="..."> ──
+            csrf = ""
+            for pat in [
+                r'name=["\']csrftoken["\'][^>]+value=["\']([^"\']+)["\']',
+                r'value=["\']([^"\']+)["\'][^>]+name=["\']csrftoken["\']',
+                r'"csrftoken"\s*:\s*"([^"]+)"',
+            ]:
+                m = _re2.search(pat, r1.text, _re2.IGNORECASE)
+                if m:
+                    csrf = m.group(1)
+                    break
+
+            # Fallback: поиск любого 32-символьного hex-токена на странице
+            if not csrf:
+                m = _re2.search(r'["\']([0-9a-f]{32})["\']', r1.text)
+                if m:
+                    csrf = m.group(1)
+
+            logger.info(
+                f"[{self.name}] Sending offer for project {pid} | "
+                f"CSRF: {'found (' + csrf[:8] + '…)' if csrf else 'NOT FOUND'}"
+            )
+
+            # Bid price (RUB) и длительность в днях
+            price_rub = int(bid_amount) if bid_amount else 0
+            effort = kwargs.get("effort") or {}
+            hours = effort.get("estimated_hours", 8) if effort else 8
+            duration_days = max(1, int(hours / 8))
+
+            # Название оффера — берём из job_data если передан, иначе шаблон
+            job_title = kwargs.get("job_title", "")
+            offer_name = (job_title[:60] if job_title else f"Предложение по проекту #{pid}")
+
+            # ── Step 2: POST /api/offer/createoffer (FormData, не JSON) ──────
+            form_data = {
+                "wantId":         pid,
+                "offerType":      "custom",
+                "description":    text,
+                "kwork_duration": str(duration_days),
+                "kwork_price":    str(price_rub),
+                "kwork_name":     offer_name,
+                "csrftoken":      csrf,
+            }
+
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as cl2:
+                r2 = await cl2.post(
+                    "https://kwork.ru/api/offer/createoffer",
+                    data=form_data,
+                    headers={
+                        **base_headers,
+                        "Referer":           offer_page_url,
+                        "X-Requested-With":  "XMLHttpRequest",
+                        "X-Csrf-Token":      csrf,
+                        "Accept":            "application/json, text/javascript, */*; q=0.01",
+                    },
+                    cookies=cookies,
+                )
+
+                logger.info(
+                    f"[{self.name}] createoffer → status={r2.status_code} "
+                    f"body={r2.text[:400]!r}"
+                )
+
                 if r2.status_code in (200, 201):
                     try:
-                        resp_data = r2.json()
-                        if resp_data.get("success") or resp_data.get("status") in ("ok", "success"):
-                            logger.info(f"[{self.name}] ✓ Отклик РЕАЛЬНО ОТПРАВЛЕН на {pid}")
+                        resp = r2.json()
+                        if resp.get("success") or resp.get("status") in ("ok", "success", 1, True):
+                            logger.info(f"[{self.name}] ✓ Отклик ОТПРАВЛЕН на проект {pid}")
+                            _bot_state.set_kwork_cookie_valid(True)
                             return True
-                        logger.warning(f"[{self.name}] Kwork ответил: {resp_data}")
+                        # Error from Kwork — log and return False
+                        err_msg = resp.get("response") or resp.get("error") or str(resp)[:200]
+                        logger.warning(f"[{self.name}] ✗ Kwork createoffer error: {err_msg}")
+                        return False
                     except Exception:
-                        logger.info(f"[{self.name}] ✓ Отклик вероятно отправлен (status={r2.status_code})")
+                        # Non-JSON 200 — treat as success
+                        logger.info(f"[{self.name}] ✓ Отклик вероятно отправлен (status=200, non-JSON)")
                         return True
+
+                elif r2.status_code in (401, 403):
+                    logger.warning(f"[{self.name}] {r2.status_code} — Сессия истекла, обновите KWORK_SESSION_COOKIE")
+                    _bot_state.set_kwork_cookie_valid(False, f"Сессия истекла ({r2.status_code}) — обновите KWORK_SESSION_COOKIE в Secrets")
+                    return False
+
                 elif r2.status_code == 302:
-                    # 302 to login = auth failure; 302 to project/success = OK
-                    if "login" in location or "account" in location:
-                        logger.warning(f"[{self.name}] Сессия истекла (redirect to login) — обновите KWORK_SESSION_COOKIE")
+                    loc = r2.headers.get("location", "")
+                    if "login" in loc or "signin" in loc:
+                        logger.warning(f"[{self.name}] Redirect to login — сессия истекла")
                         _bot_state.set_kwork_cookie_valid(False, "Сессия истекла — обновите KWORK_SESSION_COOKIE в Secrets")
                         return False
-                    else:
-                        logger.info(f"[{self.name}] ✓ Отклик принят (redirect → {location[:80]})")
-                        return True
-                elif r2.status_code == 401:
-                    logger.warning(f"[{self.name}] Сессия истекла (401) — нужно обновить KWORK_SESSION_COOKIE")
-                    _bot_state.set_kwork_cookie_valid(False, "Сессия истекла (401) — обновите KWORK_SESSION_COOKIE в Secrets")
+                    logger.info(f"[{self.name}] ✓ Отклик принят (redirect → {loc[:80]})")
+                    return True
+
                 else:
-                    logger.warning(f"[{self.name}] Want status={r2.status_code} для {pid}: {r2.text[:200]}")
+                    logger.warning(f"[{self.name}] createoffer status={r2.status_code}: {r2.text[:300]}")
+                    return False
 
         except Exception as e:
-            logger.error(f"[{self.name}] Ошибка отправки на {pid}: {e}")
-
-        logger.info(f"[{self.name}] Отклик сымитирован (реальная отправка не удалась) для {pid}")
-        return True
+            logger.error(f"[{self.name}] Ошибка отправки на проект {pid}: {e}", exc_info=True)
+            return False
 
 
 class KworkManager:
@@ -6735,17 +6784,27 @@ async def process_platform(platform: BasePlatform):
                 f"| {bid_str}{green_str}"
             )
 
-            proposal = await llm.generate_proposal(job_data)
+            # v15.0: Smart LLM routing — DeepSeek for simple/medium, OpenRouter for complex
+            _complexity = effort.get("complexity", "medium")
+            _task_llm = SmartLLMRouter.get_llm_for_task(_complexity)
+            if _task_llm is not llm:
+                logger.info(
+                    f"[{platform.name}] 🧠 LLM routed: complexity={_complexity} "
+                    f"→ {_task_llm.provider}/{_task_llm.model}"
+                )
+            proposal = await _task_llm.generate_proposal(job_data)
             proposal_text = proposal["text"]
             cprof = proposal.get("client_profile", {})
 
             bid_amt = bid_info.get("bid") if bid_info else None
             success = await platform.send_proposal(
-                job_data["external_id"], proposal_text, bid_amount=bid_amt
+                job_data["external_id"], proposal_text, bid_amount=bid_amt,
+                job_title=job_data.get("title", ""),
+                effort=effort,
             )
             status = "sent" if success else "failed"
             proposal_id = db.create_proposal(
-                job_id, proposal_text, status, llm.PROMPT_VERSION
+                job_id, proposal_text, status, _task_llm.PROMPT_VERSION
             )
 
             # Persist self-score linked to proposal record
