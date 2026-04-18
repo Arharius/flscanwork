@@ -448,3 +448,16 @@ All 6 new project types have 6-8 deep type-specific tests in TesterAgent._DEFAUL
 - `execution_queue`: every 5 min — pending order execution check
 - `learning_cycle`: every 3 hours — LLM insight extraction
 - `weekly_learning_report`: Monday 08:30 UTC — all 5 pillars summary
+
+## v15.8 Quality Gates (Apr 2026)
+- **SpecComplianceAgent** (~line 11067): anti-hallucination ТЗ→code gate. Classifies each spec feature as implemented/partial/missing, caps review_score by compliance %, prepends [SPEC-MISSING]/[SPEC-PARTIAL] notes for SmartAutoFixer.
+- **DocFetcher.fetch_github_examples** (~line 9154): top-3 starred GitHub repos per project type, README code blocks injected into ctx.doc_context before DeveloperAgent.
+- **SandboxRunnerAgent._http_probe** (~line 13144): for web/api types — actually launches process, waits for port, hits /, /health, /docs, /api, /healthz. <500 = served. Marks sandbox_passed=False if web project doesn't actually serve.
+- **DesignReviewAgent** (~line 11045): only for landing_page. Hard semantic checks (viewport, h1, alt, OG tags, semantic HTML) + LLM critique on visual hierarchy / conversion / copy / trust / CTA. Caps review_score on issues.
+- All 4 wired into OrderOrchestrator iteration loop after CrossProviderVerifierAgent.
+
+## v15.8 Render Deploy
+- render.yaml: starter $7/mo, Frankfurt, persistent disk 1GB at /opt/render/project/src/data, healthCheckPath=/health, autoDeploy=true.
+- DATA_DIR env var redirects jobs.db, deliverables/, backups/ to persistent disk.
+- Repo: github.com/Arharius/flscanwork (private). Latest commit: v15.8 quality gates.
+- User must: add card in Render billing → connect GitHub → New Blueprint → Apply → fill secrets.
