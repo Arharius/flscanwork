@@ -344,8 +344,68 @@ class Database:
                 state_json TEXT NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            -- v15.3: Scheduled client follow-ups (review requests, satisfaction checks)
+            CREATE TABLE IF NOT EXISTS client_followups (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform    TEXT NOT NULL,
+                order_id    TEXT NOT NULL,
+                kind        TEXT NOT NULL,           -- 'satisfaction' | 'review_request'
+                due_at      TIMESTAMP NOT NULL,
+                sent_at     TIMESTAMP,
+                attempt     INTEGER DEFAULT 0,
+                payload     TEXT,                    -- JSON metadata
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(platform, order_id, kind)
+            );
         ''')
         self.conn.commit()
+
+    # ---------- v15.3: Follow-up helpers ----------
+
+    def schedule_followup(self, platform: str, order_id: str, kind: str,
+                          delay_hours: float, payload: dict = None) -> bool:
+        try:
+            from datetime import datetime as _dt, timedelta as _td
+            due = (_dt.utcnow() + _td(hours=delay_hours)).strftime("%Y-%m-%d %H:%M:%S")
+            self.conn.execute(
+                "INSERT OR IGNORE INTO client_followups (platform, order_id, kind, due_at, payload) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (platform, str(order_id), kind, due, json.dumps(payload or {}, ensure_ascii=False))
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logger.debug(f"[DB] schedule_followup error: {e}")
+            return False
+
+    def get_due_followups(self) -> List[Dict[str, Any]]:
+        try:
+            rows = self.conn.execute(
+                "SELECT id, platform, order_id, kind, due_at, attempt, payload "
+                "FROM client_followups "
+                "WHERE sent_at IS NULL AND attempt < 3 AND due_at <= CURRENT_TIMESTAMP "
+                "ORDER BY due_at ASC LIMIT 20"
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    def mark_followup_sent(self, fid: int, success: bool):
+        try:
+            if success:
+                self.conn.execute(
+                    "UPDATE client_followups SET sent_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (fid,)
+                )
+            else:
+                self.conn.execute(
+                    "UPDATE client_followups SET attempt = attempt + 1 WHERE id = ?",
+                    (fid,)
+                )
+            self.conn.commit()
+        except Exception:
+            pass
 
     # ---------- Persistent Learning State ----------
 
@@ -4687,7 +4747,8 @@ class KworkManager:
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.username and self.password)
+        # v15.3: cookie-only mode is also valid (web session)
+        return bool((self.username and self.password) or config.KWORK_SESSION_COOKIE)
 
     def _api_headers(self) -> dict:
         h = {
@@ -5279,34 +5340,108 @@ class KworkManager:
         if not self.is_configured or not await self._authenticate():
             return []
 
-        # Web session: can't read message contents via API — check unread count from page
+        # Web session: v15.3 — actually fetch unread dialogs & their last messages
         if self._is_web_session():
             try:
-                import re as _re
+                import re as _re, json as _json
+                msgs: List[Dict[str, Any]] = []
                 async with httpx.AsyncClient(
-                    timeout=15.0, follow_redirects=True, cookies=self._cookies
+                    timeout=20.0, follow_redirects=True, cookies=self._cookies
                 ) as client:
-                    r = await client.get(
-                        f"{self.WEB_BASE}/",
-                        headers=self._web_headers(),
-                    )
-                    m = _re.search(r'unreadDialogCount\s*[=:]\s*(\d+)', r.text)
-                    count = int(m.group(1)) if m else 0
-                    if count > 0:
-                        logger.info(
-                            f"[KworkManager] 📬 Непрочитанных диалогов: {count} "
-                            f"(откройте kwork.ru/messages для ответа)"
-                        )
-                        await send_telegram(
-                            f"📬 <b>Kwork: {count} новых сообщений</b>\n"
-                            f"🔗 Ответьте вручную: <a href=\"https://kwork.ru/messages\">kwork.ru/messages</a>\n"
-                            f"<i>Авто-ответ доступен только через мобильный API.</i>"
-                        )
-                    else:
-                        logger.debug("[KworkManager] Kwork входящих нет")
+                    # 1) Try modern Kwork inbox JSON endpoints
+                    candidates = [
+                        ("POST", f"{self.WEB_BASE}/inbox_list/load_dialogs", {"filter": "unread"}),
+                        ("POST", f"{self.WEB_BASE}/inbox/get_dialogs", {"filter": "unread"}),
+                        ("GET",  f"{self.WEB_BASE}/inbox?filter=unread&format=json", None),
+                    ]
+                    dialogs = []
+                    for method, url, payload in candidates:
+                        try:
+                            hdrs = self._web_headers()
+                            hdrs["X-Requested-With"] = "XMLHttpRequest"
+                            hdrs["Accept"] = "application/json, */*; q=0.01"
+                            if method == "POST":
+                                resp = await client.post(url, headers=hdrs, data=payload or {})
+                            else:
+                                resp = await client.get(url, headers=hdrs)
+                            if resp.status_code != 200:
+                                continue
+                            try:
+                                jd = resp.json()
+                            except Exception:
+                                continue
+                            payload_obj = jd.get("response") if isinstance(jd, dict) else jd
+                            if isinstance(payload_obj, dict):
+                                for k in ("dialogs", "items", "list", "data"):
+                                    v = payload_obj.get(k)
+                                    if isinstance(v, list) and v:
+                                        dialogs = v
+                                        break
+                            elif isinstance(payload_obj, list):
+                                dialogs = payload_obj
+                            if dialogs:
+                                break
+                        except Exception as _de:
+                            logger.debug(f"[KworkManager] inbox endpoint {url} fail: {_de}")
+
+                    # 2) Fallback: scrape /inbox HTML for dialog ids
+                    if not dialogs:
+                        try:
+                            r = await client.get(f"{self.WEB_BASE}/inbox", headers=self._web_headers())
+                            for m in _re.finditer(r'href="/inbox/(\d+)"[^>]*data-unread="?(\d+)"?', r.text):
+                                if int(m.group(2) or 0) > 0:
+                                    dialogs.append({"id": m.group(1)})
+                        except Exception as _se:
+                            logger.debug(f"[KworkManager] inbox HTML scrape fail: {_se}")
+
+                    # 3) For each unread dialog: fetch last message contents
+                    for d in dialogs[:10]:
+                        did = str(d.get("id") or d.get("dialog_id") or "")
+                        if not did:
+                            continue
+                        try:
+                            r = await client.get(
+                                f"{self.WEB_BASE}/inbox/{did}",
+                                headers=self._web_headers(),
+                            )
+                            # Try inline JSON: messages: [...]
+                            text = ""
+                            sender = d.get("sender") or d.get("user_name") or "Клиент"
+                            jm = _re.search(r'"messages"\s*:\s*(\[.+?\])\s*[,}]', r.text, _re.S)
+                            if jm:
+                                try:
+                                    arr = _json.loads(jm.group(1))
+                                    if arr:
+                                        last = arr[-1]
+                                        text = last.get("message") or last.get("text") or ""
+                                        sender = last.get("user_name") or last.get("sender") or sender
+                                except Exception:
+                                    pass
+                            # Fallback: scrape last incoming message bubble
+                            if not text:
+                                tm = _re.search(
+                                    r'class="[^"]*message[^"]*incoming[^"]*"[^>]*>\s*<[^>]+>([^<]{5,500})',
+                                    r.text, _re.S,
+                                )
+                                if tm:
+                                    text = tm.group(1).strip()
+                            if text:
+                                msgs.append({
+                                    "dialog_id": did,
+                                    "sender_name": sender,
+                                    "message": text[:1500],
+                                })
+                        except Exception as _me:
+                            logger.debug(f"[KworkManager] dialog {did} fetch fail: {_me}")
+
+                if msgs:
+                    logger.info(f"[KworkManager] 📬 Получено {len(msgs)} непрочитанных сообщений (web)")
+                else:
+                    logger.debug("[KworkManager] Kwork входящих нет")
+                return msgs
             except Exception as e:
                 logger.debug(f"[KworkManager] check_messages (web) error: {e}")
-            return []  # can't return actual message objects without API token
+                return []
 
         # Mobile API: full message fetch
         try:
@@ -5325,28 +5460,68 @@ class KworkManager:
         return []
 
     async def auto_reply_message(self, msg_id: int, sender_name: str,
-                                 client_text: str) -> bool:
+                                 client_text: str, dialog_id: str = "") -> bool:
         """
         Auto-reply to a client message using LLM-generated response.
-        Generates a professional, friendly reply matching the client's question.
+        v15.3: works in BOTH web mode (via /inbox/{dialog_id}/send) and mobile API mode.
         """
         if not self.is_configured:
             return False
         llm_svc = _get_shared_llm()
         system = (
-            "Ты — профессиональный фрилансер на Kwork. "
-            "Отвечай вежливо, профессионально, кратко (2-4 предложения). "
-            "Покажи что понял задачу клиента. "
-            "Не используй markdown — только обычный текст."
+            "Ты — профессиональный фрилансер-разработчик на Kwork с топовым рейтингом. "
+            "Твоя цель — ВСЕГДА оставлять клиента довольным, поддерживать диалог. "
+            "Отвечай вежливо, экспертно, конкретно (3-5 предложений). "
+            "Покажи что понял задачу. Если просят детали — задай 1-2 уточняющих вопроса. "
+            "Если благодарят — кратко и тепло поблагодари. "
+            "Никакого markdown — только обычный текст."
         )
         user = (
-            f"Клиент написал: \"{client_text[:500]}\"\n\n"
-            "Напиши ответ фрилансера. Будь конкретным и профессиональным."
+            f"Сообщение клиента: \"{client_text[:600]}\"\n\n"
+            "Напиши идеальный ответ фрилансера. Будь профессионален и человечен."
         )
         try:
-            reply_text = await llm_svc.complete(system, user, max_tokens=200, temperature=0.4)
+            reply_text = await llm_svc.complete(system, user, max_tokens=240, temperature=0.4)
             if not reply_text or len(reply_text) < 10:
                 return False
+
+            # v15.3: Web-session mode — POST to /inbox/{dialog_id}/send
+            if self._is_web_session() and dialog_id:
+                if not self._cookies:
+                    await self._authenticate()
+                if not self._cookies:
+                    return False
+                try:
+                    async with httpx.AsyncClient(
+                        timeout=15.0, follow_redirects=True, cookies=self._cookies
+                    ) as wc:
+                        page = await wc.get(
+                            f"{self.WEB_BASE}/inbox/{dialog_id}",
+                            headers=self._web_headers(),
+                        )
+                        import re as _re
+                        csrf_m = _re.search(r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"', page.text)
+                        csrf = csrf_m.group(1) if csrf_m else ""
+                        hdrs = self._web_headers()
+                        hdrs["X-Requested-With"] = "XMLHttpRequest"
+                        hdrs["Referer"] = f"{self.WEB_BASE}/inbox/{dialog_id}"
+                        resp = await wc.post(
+                            f"{self.WEB_BASE}/inbox/{dialog_id}/send",
+                            data={"message": reply_text, "csrf": csrf},
+                            headers=hdrs,
+                        )
+                        if resp.status_code == 200:
+                            logger.info(
+                                f"[KworkManager] ✉️ Авто-ответ (web) → {sender_name}: "
+                                f"{reply_text[:60]}…"
+                            )
+                            return True
+                        logger.debug(f"[KworkManager] web auto-reply HTTP {resp.status_code}")
+                except Exception as _we:
+                    logger.debug(f"[KworkManager] web auto-reply error: {_we}")
+                return False
+
+            # Mobile API mode
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.post(
                     f"{self.API_BASE}/messages/{msg_id}/reply",
@@ -5370,10 +5545,11 @@ class KworkManager:
         for msg in msgs:
             try:
                 msg_id    = msg.get("id", 0)
+                dialog_id = str(msg.get("dialog_id", "") or "")
                 sender    = msg.get("sender_name", "Клиент")
                 text      = msg.get("message", "") or msg.get("text", "")
-                if msg_id and text:
-                    ok = await self.auto_reply_message(msg_id, sender, text)
+                if (msg_id or dialog_id) and text:
+                    ok = await self.auto_reply_message(msg_id, sender, text, dialog_id=dialog_id)
                     if ok:
                         replied += 1
                         await asyncio.sleep(2)  # polite rate limit
@@ -13796,6 +13972,17 @@ class OrderOrchestrator:
                         if sent:
                             logger.info(f"[Orchestrator] ✅ Delivery sent to Kwork client "
                                         f"(order #{_order_num})")
+                            # v15.3: schedule satisfaction check (4h) + review request (24h)
+                            try:
+                                db.schedule_followup("Kwork", _order_num, "satisfaction",
+                                                     delay_hours=4.0,
+                                                     payload={"job_title": job.get("title", "")})
+                                db.schedule_followup("Kwork", _order_num, "review_request",
+                                                     delay_hours=24.0,
+                                                     payload={"job_title": job.get("title", "")})
+                                logger.info(f"[Orchestrator] 📅 Scheduled follow-ups for order #{_order_num}")
+                            except Exception as _fe:
+                                logger.debug(f"[Orchestrator] schedule_followup error: {_fe}")
                         else:
                             logger.info(f"[Orchestrator] ℹ️ Could not auto-send to Kwork client — "
                                         f"client message saved in CLIENT_MESSAGE.md")
@@ -14749,6 +14936,76 @@ async def main():
         trigger=CronTrigger(day_of_week="mon", hour=7, minute=30),
         id="weekly_portfolio_optimization",
         replace_existing=True,
+    )
+
+    # v15.3: Process scheduled follow-ups (satisfaction checks + review requests)
+    async def _process_followups():
+        try:
+            due = db.get_due_followups()
+            if not due:
+                return
+            llm_svc = _get_shared_llm()
+            for fu in due:
+                fid = fu["id"]; platform = fu["platform"]; oid = fu["order_id"]
+                kind = fu["kind"]
+                payload = {}
+                try:
+                    payload = json.loads(fu.get("payload") or "{}")
+                except Exception:
+                    pass
+                title = payload.get("job_title", "")[:120]
+
+                if kind == "satisfaction":
+                    system = ("Ты — топовый фрилансер на Kwork. Через несколько часов после сдачи "
+                              "проекта ты пишешь клиенту короткое тёплое сообщение, чтобы убедиться "
+                              "что всё работает и нет вопросов. Тон — доброжелательный, без навязчивости. "
+                              "2-3 предложения, без markdown.")
+                    user = (f"Заказ: {title}\nНапиши follow-up клиенту через 4 часа после сдачи. "
+                            f"Спроси, всё ли устраивает, готов помочь с правками если нужно.")
+                else:  # review_request
+                    system = ("Ты — топовый фрилансер на Kwork. Спустя сутки после сдачи проекта "
+                              "ты вежливо просишь клиента оставить отзыв, если он доволен работой. "
+                              "Сообщение тёплое, ненавязчивое, благодарственное. 2-3 предложения, "
+                              "без markdown.")
+                    user = (f"Заказ: {title}\nНапиши клиенту вежливую просьбу оставить отзыв "
+                            f"если ему понравилась работа. Поблагодари за сотрудничество.")
+
+                try:
+                    text = await llm_svc.complete(system, user, max_tokens=200, temperature=0.5)
+                    if not text or len(text) < 15:
+                        db.mark_followup_sent(fid, success=False)
+                        continue
+                    sent_ok = False
+                    if "Kwork" in platform and oid:
+                        try:
+                            sent_ok = await kwork_manager.send_delivery_to_client(
+                                oid, text, attachment_path=None,
+                            )
+                        except Exception:
+                            sent_ok = False
+                    db.mark_followup_sent(fid, success=sent_ok)
+                    if sent_ok:
+                        logger.info(f"[Followup] ✅ {kind} → {platform} #{oid}")
+                        await send_telegram(
+                            f"💌 <b>Follow-up отправлен</b>\n"
+                            f"Тип: {kind}\nПлатформа: {platform}\nЗаказ: #{oid}\n"
+                            f"<i>{text[:200]}</i>"
+                        )
+                    else:
+                        logger.debug(f"[Followup] failed to send {kind} for #{oid}")
+                    await asyncio.sleep(2)
+                except Exception as _e:
+                    logger.debug(f"[Followup] error on #{fid}: {_e}")
+                    db.mark_followup_sent(fid, success=False)
+        except Exception as e:
+            logger.error(f"[Followup] processor error: {e}")
+
+    scheduler.add_job(
+        _process_followups,
+        trigger=IntervalTrigger(minutes=30),
+        id="client_followups",
+        replace_existing=True,
+        misfire_grace_time=300,
     )
 
     # v11.0: Daily ranking maintenance — keeps kworks at top of Kwork search
