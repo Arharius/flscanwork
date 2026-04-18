@@ -1759,42 +1759,66 @@ class SmartLLMRouter:
             return "simple"
         return "medium"
 
+    # Model tiers on OpenRouter
+    # Configurable via env vars; sensible defaults provided
+    OPENROUTER_MODELS = {
+        # For complex proposals: deepseek-r1 — reasoning model, understands architecture
+        "complex":      os.getenv("OPENROUTER_COMPLEX_MODEL",  "deepseek/deepseek-r1"),
+        # For review/scoring: a fast capable model
+        "review":       os.getenv("OPENROUTER_REVIEW_MODEL",   "deepseek/deepseek-chat-v3-0324"),
+        # For architecture / security analysis
+        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",     "deepseek/deepseek-r1"),
+        "security":     os.getenv("OPENROUTER_ARCH_MODEL",     "deepseek/deepseek-r1"),
+        # Medium tasks: same model as DeepSeek but via OpenRouter
+        "medium":       os.getenv("OPENROUTER_MEDIUM_MODEL",   "deepseek/deepseek-chat-v3-0324"),
+    }
+
     @classmethod
     def get_llm_for_task(cls, complexity: str, phase: str = "generate") -> LLMService:
         """
         Returns the best LLMService for the given complexity and phase.
-        phase: 'generate' | 'review' | 'architecture' | 'security'
+
+        Routing rules:
+          simple               → DeepSeek Chat (fast, cheap)
+          medium               → DeepSeek Chat (sufficient quality)
+          complex              → OpenRouter deepseek-r1 (reasoning)
+          phase=architecture   → OpenRouter deepseek-r1 (always)
+          phase=security       → OpenRouter deepseek-r1 (always)
+          phase=review         → OpenRouter deepseek-chat-v3 (fast scoring)
+          No OPENROUTER_API_KEY → always fallback to DeepSeek
         """
         openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
-        deepseek_key   = os.getenv("DEEPSEEK_API_KEY", "").strip()
 
-        # Always use DeepSeek for simple tasks or if no OpenRouter key
-        if not openrouter_key or complexity == "simple":
+        # No OpenRouter key or simple task → DeepSeek (cheapest, fastest)
+        need_openrouter = (
+            complexity == "complex"
+            or phase in ("architecture", "security", "review")
+        )
+        if not openrouter_key or not need_openrouter:
             return _get_shared_llm()
 
-        # Use OpenRouter for complex tasks or critical phases
-        use_openrouter = (
-            complexity == "complex"
-            or phase in ("review", "architecture", "security")
+        # Pick model by phase first, then by complexity
+        if phase in ("architecture", "security"):
+            model = cls.OPENROUTER_MODELS["architecture"]
+        elif phase == "review":
+            model = cls.OPENROUTER_MODELS["review"]
+        elif complexity == "complex":
+            model = cls.OPENROUTER_MODELS["complex"]
+        else:
+            model = cls.OPENROUTER_MODELS["medium"]
+
+        svc = LLMService.__new__(LLMService)
+        svc.api_key  = openrouter_key
+        svc.api_url  = "https://openrouter.ai/api/v1/chat/completions"
+        svc.model    = model
+        svc.provider = "OpenRouter"
+        svc._success_patterns      = []
+        svc._last_patterns_refresh = 0.0
+        logger.info(
+            f"[SmartLLMRouter] ⚡ complexity={complexity} phase={phase} "
+            f"→ OpenRouter/{model}"
         )
-
-        if use_openrouter:
-            # Pick the best available model on OpenRouter
-            model = "anthropic/claude-3.5-sonnet"   # best code quality
-            svc = LLMService.__new__(LLMService)
-            svc.api_key  = openrouter_key
-            svc.api_url  = "https://openrouter.ai/api/v1/chat/completions"
-            svc.model    = model
-            svc.provider = "OpenRouter"
-            svc._success_patterns     = []
-            svc._last_patterns_refresh = 0.0
-            logger.info(
-                f"[SmartLLMRouter] ⚡ Complexity={complexity} phase={phase} "
-                f"→ OpenRouter/{model}"
-            )
-            return svc
-
-        return _get_shared_llm()
+        return svc
 
     @classmethod
     def estimate_effort(cls, job: dict) -> dict:
