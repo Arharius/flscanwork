@@ -4616,16 +4616,55 @@ class KworkManager:
         if session_cookie:
             logger.info("[KworkManager] Используем KWORK_SESSION_COOKIE из Secrets...")
             self._cookies = {}
-            # Cookie string can be "name=value; name2=value2" format
+            # Cookie string can be "name=value; name2=value2" OR full Set-Cookie format
+            expires_at_str = ""
+            days_remaining = None
             for part in session_cookie.split(";"):
                 part = part.strip()
-                if "=" in part:
+                # Check for expires attribute (from full Set-Cookie header format)
+                low = part.lower()
+                if low.startswith("expires=") or low.startswith("max-age="):
+                    if low.startswith("expires="):
+                        raw_date = part[8:].strip()
+                        try:
+                            from email.utils import parsedate_to_datetime as _pdt
+                            exp_dt = _pdt(raw_date)
+                            from datetime import timezone as _tz
+                            now_dt = datetime.now(_tz.utc)
+                            delta = (exp_dt - now_dt).days
+                            days_remaining = delta
+                            expires_at_str = exp_dt.strftime("%Y-%m-%d")
+                        except Exception:
+                            pass
+                elif "=" in part:
                     k, v = part.split("=", 1)
                     self._cookies[k.strip()] = v.strip()
             self._token = f"session_cookie_{time.monotonic()}"
             self._token_expires = time.monotonic() + 43200  # 12h
-            logger.info("[KworkManager] ✓ Авторизован через session cookie")
-            _bot_state.set_kwork_cookie_valid(True)
+            # Log expiry info
+            if days_remaining is not None:
+                if days_remaining < 0:
+                    logger.error(
+                        f"[KworkManager] ⛔ KWORK_SESSION_COOKIE истёк {expires_at_str}! "
+                        "Обновите куки в Secrets."
+                    )
+                elif days_remaining < 7:
+                    logger.warning(
+                        f"[KworkManager] ⚠️ KWORK_SESSION_COOKIE истекает через "
+                        f"{days_remaining} дн. ({expires_at_str}). Обновите заблаговременно!"
+                    )
+                else:
+                    logger.info(
+                        f"[KworkManager] ✓ Авторизован через session cookie "
+                        f"(истекает {expires_at_str}, через {days_remaining} дн.)"
+                    )
+            else:
+                logger.info("[KworkManager] ✓ Авторизован через session cookie")
+            _bot_state.set_kwork_cookie_valid(
+                True,
+                expires_at=expires_at_str,
+                days_remaining=days_remaining,
+            )
             return True
 
         logger.info("[KworkManager] Аутентификация на Kwork...")

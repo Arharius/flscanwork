@@ -1463,9 +1463,18 @@ async function checkCookieStatus() {
     } else if (kw.valid === false) {
       banner.className = 'cookie-banner error';
       banner.innerHTML = `🔴 Сессия Kwork истекла! ${esc(kw.error)} Откройте kwork.ru в браузере → DevTools → Storage → Cookies и обновите секрет KWORK_SESSION_COOKIE.`;
+    } else if (kw.valid === true && kw.days_remaining !== null && kw.days_remaining < 7) {
+      banner.className = 'cookie-banner warn';
+      const daysStr = kw.days_remaining <= 0 ? 'истёк!' : `осталось ${kw.days_remaining} дн.`;
+      const expStr = kw.expires_at ? ` (${esc(kw.expires_at)})` : '';
+      banner.innerHTML = `⚠️ Сессия Kwork истекает скоро${expStr} — ${daysStr}. Обновите KWORK_SESSION_COOKIE в Secrets заблаговременно!`;
     } else if (kw.valid === true) {
+      const expInfo = kw.expires_at ? ` — активна до ${esc(kw.expires_at)}` : '';
       banner.className = 'cookie-banner';
-      banner.style.display = 'none';
+      banner.style.cssText = 'display:flex;background:#1a3a1a;color:#68d391;border-bottom:1px solid var(--border)';
+      banner.innerHTML = `✅ Kwork сессия активна${expInfo}`;
+      // Hide after 10s to avoid clutter when all is fine
+      setTimeout(() => { banner.style.display = 'none'; }, 10000);
     } else {
       banner.className = 'cookie-banner';
       banner.style.display = 'none';
