@@ -5602,15 +5602,37 @@ class KworkManager:
                     f"🔗 kwork.ru/orders/{order_id}\n"
                     f"🤖 Запускаю автовыполнение…"
                 )
+                # v15.2: Proactive intro to client — professional first impression
+                try:
+                    eta_min = 8 if budget < 3000 else 15
+                    intro = (
+                        f"Здравствуйте! 👋\n\n"
+                        f"Принял ваш заказ в работу. Приступаю немедленно — "
+                        f"ориентировочное время готовности: ~{eta_min} мин.\n\n"
+                        f"📌 Что сделаю:\n"
+                        f"• Полный production-ready код (zero placeholders)\n"
+                        f"• Юнит-тесты + проверка безопасности (OWASP)\n"
+                        f"• README + инструкция по запуску\n"
+                        f"• Готовые Docker/deploy-конфиги\n\n"
+                        f"Если есть детали или пожелания — напишите сейчас, "
+                        f"я учту в реализации. Иначе работаю по ТЗ из заказа.\n\n"
+                        f"С уважением 🙏"
+                    )
+                    await self.send_delivery_to_client(order_id, intro)
+                    logger.info(f"[KworkManager] 💬 Intro sent to client (order {order_id})")
+                except Exception as _ie:
+                    logger.debug(f"[KworkManager] Intro send failed: {_ie}")
 
         except Exception as e:
             logger.debug(f"[KworkManager] check_accepted_orders error: {e}")
         return newly_accepted
 
-    async def send_delivery_to_client(self, order_id: str, delivery_text: str) -> bool:
+    async def send_delivery_to_client(self, order_id: str, delivery_text: str,
+                                      attachment_path: Optional[str] = None) -> bool:
         """
         Sends the delivery message to the client via Kwork inbox after execution.
         Uses session cookie for web-based messaging.
+        v15.2: optionally attaches a file (e.g. ZIP archive) via multipart upload.
         """
         cookie = os.environ.get("KWORK_SESSION_COOKIE", "").strip()
         if not cookie:
@@ -5638,18 +5660,47 @@ class KworkManager:
             thread_m = _re.search(rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}', page.text, _re.S)
             thread_id = thread_m.group(1) if thread_m else None
 
-            if thread_id:
-                resp = sess.post(
-                    f"https://kwork.ru/inbox/{thread_id}/send",
-                    data={"message": delivery_text, "csrf": csrf},
-                    headers={"X-Requested-With": "XMLHttpRequest",
-                             "Referer": f"https://kwork.ru/inbox/{thread_id}"},
-                    timeout=10,
-                )
-                if resp.status_code == 200:
-                    logger.info(f"[KworkManager] ✅ Delivery message sent to client (order {order_id})")
-                    return True
-            logger.debug(f"[KworkManager] Could not find inbox thread for order {order_id}")
+            if not thread_id:
+                logger.debug(f"[KworkManager] Could not find inbox thread for order {order_id}")
+                return False
+
+            # v15.2: Try multipart with file attachment first (if provided)
+            if attachment_path and os.path.isfile(attachment_path):
+                try:
+                    fname = os.path.basename(attachment_path)
+                    with open(attachment_path, "rb") as fh:
+                        files_payload = {
+                            "files[]": (fname, fh, "application/zip"),
+                        }
+                        resp = sess.post(
+                            f"https://kwork.ru/inbox/{thread_id}/send",
+                            data={"message": delivery_text, "csrf": csrf},
+                            files=files_payload,
+                            headers={"X-Requested-With": "XMLHttpRequest",
+                                     "Referer": f"https://kwork.ru/inbox/{thread_id}"},
+                            timeout=60,
+                        )
+                    if resp.status_code == 200 and "error" not in resp.text.lower()[:200]:
+                        logger.info(f"[KworkManager] ✅ Delivery + ZIP attached to client "
+                                    f"(order {order_id}, {os.path.getsize(attachment_path)//1024} KB)")
+                        return True
+                    else:
+                        logger.warning(f"[KworkManager] Attachment upload may have failed "
+                                       f"(HTTP {resp.status_code}); falling back to text-only")
+                except Exception as _ae:
+                    logger.warning(f"[KworkManager] Attachment send error: {_ae} — falling back")
+
+            # Plain text-only send (fallback or no attachment)
+            resp = sess.post(
+                f"https://kwork.ru/inbox/{thread_id}/send",
+                data={"message": delivery_text, "csrf": csrf},
+                headers={"X-Requested-With": "XMLHttpRequest",
+                         "Referer": f"https://kwork.ru/inbox/{thread_id}"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                logger.info(f"[KworkManager] ✅ Delivery message sent to client (order {order_id})")
+                return True
         except Exception as e:
             logger.debug(f"[KworkManager] send_delivery_to_client error: {e}")
         return False
@@ -13417,9 +13468,15 @@ class OrderOrchestrator:
     Quality convergence: stops early when:
       - tests pass AND review_score >= 8 AND security_score >= 7
     """
-    MAX_ITERATIONS  = 5
-    QUALITY_TARGET  = 8    # review score target (raised to 8 for world-class quality)
-    SECURITY_TARGET = 7.0  # security score target (raised to 7 — no critical issues tolerated)
+    MAX_ITERATIONS  = 7    # v15.2: raised from 5 — more iterations = closer to perfect
+    QUALITY_TARGET  = 9    # v15.2: raised from 8 — only A-grade code ships to clients
+    SECURITY_TARGET = 8.5  # v15.2: raised from 7 — zero tolerance for security issues
+    # v15.2: Excellence Mode — for high-value orders unlock max effort
+    EXCELLENCE_BUDGET_THRESHOLD = 3000   # RUB
+    EXCELLENCE_MAX_ITERATIONS   = 9
+    # v15.2: Trust Guard — refuse to auto-deliver substandard work
+    AUTO_DELIVER_MIN_SCORE    = 8.5
+    AUTO_DELIVER_MIN_SECURITY = 8.0
 
     def _is_converged(self, ctx: AgentContext) -> bool:
         return (ctx.test_passed
@@ -13439,8 +13496,14 @@ class OrderOrchestrator:
         title  = job.get("title", "?")
         ext_id = job.get("external_id", "unknown")
         ptype  = "unknown"
+        # v15.2: Excellence Mode — premium effort for high-value orders
+        budget = float(job.get("budget", 0) or 0)
+        excellence_mode = budget >= self.EXCELLENCE_BUDGET_THRESHOLD
+        max_iters = self.EXCELLENCE_MAX_ITERATIONS if excellence_mode else self.MAX_ITERATIONS
         logger.info(f"[Orchestrator] ══════════════════════════════════")
-        logger.info(f"[Orchestrator] START: {title}")
+        logger.info(f"[Orchestrator] START: {title} | budget={budget:.0f}₽ | "
+                    f"mode={'⭐ EXCELLENCE' if excellence_mode else 'standard'} | "
+                    f"max_iter={max_iters}")
         logger.info(f"[Orchestrator] ══════════════════════════════════")
 
         # v5.1: Concurrency guard
@@ -13448,6 +13511,9 @@ class OrderOrchestrator:
             logger.warning(f"[Orchestrator] DEFERRED (capacity): {title[:60]}")
             return None
         await concurrent_pm.register_project(job)
+        # v15.2: stash excellence flags for downstream agents
+        job["_excellence_mode"] = excellence_mode
+        job["_max_iterations"]  = max_iters
 
         job_row = db.get_job_by_external_id(ext_id)
         exec_id = db.start_execution(job_row["id"]) if job_row else None
@@ -13502,8 +13568,8 @@ class OrderOrchestrator:
                 logger.info(f"[Orchestrator] 🔧 SelfRepair: injecting {len(self_repair_engine.get_repair_rules())} repair rules")
 
             # ── Phase 2: Iterative Development Loop ───────────────
-            for i in range(self.MAX_ITERATIONS):
-                logger.info(f"[Orchestrator] ── Iteration {i+1}/{self.MAX_ITERATIONS} ──")
+            for i in range(max_iters):
+                logger.info(f"[Orchestrator] ── Iteration {i+1}/{max_iters} ──")
 
                 # v10.1: Quantum Variant Collapse — on first iteration of high-value jobs,
                 # generate NUM_VARIANTS code variants in quantum superposition (concurrently),
@@ -13559,7 +13625,7 @@ class OrderOrchestrator:
                              or not ctx.security_passed
                              or ctx.review_score < self.QUALITY_TARGET
                              or (i == 0 and not ctx.sandbox_passed))
-                if needs_fix and i < self.MAX_ITERATIONS - 1:
+                if needs_fix and i < max_iters - 1:
                     ctx = await SmartAutoFixerAgent().run(ctx)
                     # Re-run tests after fix to update status
                     ctx = await TesterAgent().run(ctx)
@@ -13596,7 +13662,7 @@ class OrderOrchestrator:
                 # Track Lyapunov energy V = 10 - score; detect if iterations are stuck
                 lyapunov_monitor.record(float(ctx.review_score))
                 lyap_status = lyapunov_monitor.status()
-                if lyapunov_monitor.is_stuck() and i < self.MAX_ITERATIONS - 1:
+                if lyapunov_monitor.is_stuck() and i < max_iters - 1:
                     ctx.spec["_lyapunov_escape"] = lyapunov_monitor.get_escape_hint()
                     logger.warning(
                         f"[Orchestrator] ⚠️  Lyapunov STUCK ({lyap_status}) — "
@@ -13631,7 +13697,7 @@ class OrderOrchestrator:
                     break
             else:
                 logger.warning(
-                    f"[Orchestrator] ⚠️ Max iterations ({self.MAX_ITERATIONS}) reached. "
+                    f"[Orchestrator] ⚠️ Max iterations ({max_iters}) reached. "
                     f"Final: tests={ctx.test_passed} score={ctx.review_score}/10 "
                     f"sec={ctx.security_score}/10"
                 )
@@ -13692,15 +13758,40 @@ class OrderOrchestrator:
                               "w", encoding="utf-8") as f:
                         f.write(f"# Delivery Message for Client\n\n{delivery_msg}\n")
 
+            # ── v15.2 TRUST GUARD: refuse to auto-deliver substandard work ──
+            quality_ok = (
+                ctx.test_passed
+                and float(ctx.review_score or 0) >= self.AUTO_DELIVER_MIN_SCORE
+                and float(ctx.security_score or 0) >= self.AUTO_DELIVER_MIN_SECURITY
+            )
+            if not quality_ok:
+                logger.warning(
+                    f"[Orchestrator] 🛑 TrustGuard: НЕ отправляю клиенту автоматически. "
+                    f"score={ctx.review_score}/10 sec={ctx.security_score}/10 "
+                    f"tests={'✅' if ctx.test_passed else '❌'}"
+                )
+                await send_telegram(
+                    f"🛑 <b>Требуется ручная проверка!</b>\n"
+                    f"📋 {title}\n"
+                    f"⚠️ Качество ниже порога авто-отправки:\n"
+                    f"   • Тесты: {'✅' if ctx.test_passed else '❌'}\n"
+                    f"   • Оценка: {ctx.review_score}/10 (нужно ≥{self.AUTO_DELIVER_MIN_SCORE})\n"
+                    f"   • Security: {ctx.security_score}/10 (нужно ≥{self.AUTO_DELIVER_MIN_SECURITY})\n"
+                    f"📁 {ctx.deliverable_path}\n"
+                    f"⬇️ {ctx.deliverable_url or '—'}\n"
+                    f"👀 Проверьте код и отправьте клиенту вручную"
+                )
+
             # ── FULL-AUTO: Send delivery to client via platform messenger ──
-            if delivery_msg:
+            if delivery_msg and quality_ok:
                 _ext = job.get("external_id", "")
                 _platform = job.get("platform", "")
                 _order_num = _ext.replace("Kwork_", "").replace("FL_", "").split("_")[0]
                 try:
                     if "Kwork" in _platform and _order_num:
                         sent = await kwork_manager.send_delivery_to_client(
-                            _order_num, delivery_msg
+                            _order_num, delivery_msg,
+                            attachment_path=ctx.deliverable_zip or None,
                         )
                         if sent:
                             logger.info(f"[Orchestrator] ✅ Delivery sent to Kwork client "
