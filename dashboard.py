@@ -2389,6 +2389,48 @@ def health():
     return jsonify({"status": "ok", "bot": "FreelanceBot v15.0"})
 
 
+@app.route("/download/<safe_id>")
+def download_deliverable(safe_id):
+    """Serve the ZIP archive of a completed order's deliverable."""
+    from flask import send_file, abort
+    # Basic safety: only alphanumerics, dash, underscore
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z0-9_\-]+", safe_id or ""):
+        return abort(400, "Invalid id")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    zip_path = os.path.join(base_dir, "deliverables", f"{safe_id}.zip")
+    if not os.path.isfile(zip_path):
+        return abort(404, "Deliverable not found")
+    return send_file(zip_path, as_attachment=True,
+                     download_name=f"{safe_id}.zip",
+                     mimetype="application/zip")
+
+
+@app.route("/api/deliverables")
+def api_deliverables():
+    """List all packaged deliverables (ZIPs) ready for download."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    deliv_dir = os.path.join(base_dir, "deliverables")
+    items = []
+    if os.path.isdir(deliv_dir):
+        for fn in sorted(os.listdir(deliv_dir), reverse=True):
+            if not fn.endswith(".zip"):
+                continue
+            full = os.path.join(deliv_dir, fn)
+            try:
+                size_kb = os.path.getsize(full) // 1024
+                mtime = datetime.utcfromtimestamp(os.path.getmtime(full)).strftime("%Y-%m-%d %H:%M:%S")
+                items.append({
+                    "id": fn[:-4],
+                    "size_kb": size_kb,
+                    "created_at": _to_msk(mtime),
+                    "url": f"/download/{fn[:-4]}",
+                })
+            except Exception:
+                continue
+    return jsonify({"deliverables": items, "count": len(items)})
+
+
 @app.route("/api/cookie-status")
 def api_cookie_status():
     """Returns Kwork session cookie health status."""

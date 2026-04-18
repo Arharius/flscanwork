@@ -5406,49 +5406,119 @@ class KworkManager:
             orders = []
 
             if self._is_web_session():
-                # Web-scraping mode: find order data in page's embedded JS JSON
+                # v15.1: Multi-endpoint strategy — Kwork's web app uses several
+                # JSON endpoints; try them in order, fall back to HTML scraping.
                 import re as _re, json as _json
+                raw_orders: list = []
+                api_candidates = [
+                    ("POST", f"{self.WEB_BASE}/user_orders/get_orders_list", {"filter": "inwork"}),
+                    ("POST", f"{self.WEB_BASE}/user_orders/get_inwork_orders", {}),
+                    ("GET",  f"{self.WEB_BASE}/api/user/orders/inwork", None),
+                    ("GET",  f"{self.WEB_BASE}/user/orders?filter=inwork&format=json", None),
+                ]
                 async with httpx.AsyncClient(
                     timeout=15.0, follow_redirects=True, cookies=self._cookies
                 ) as client:
-                    r = await client.get(
-                        f"{self.WEB_BASE}/user/orders",
-                        headers=self._web_headers(),
-                    )
-                # Kwork embeds order data in __INITIAL_STATE__ or similar
-                patterns = [
-                    r'__INITIAL_STATE__\s*=\s*(\{.*?\})\s*;',
-                    r'"orders"\s*:\s*(\[.*?\])\s*[,}]',
-                    r'"inwork"\s*:\s*(\[.*?\])\s*[,}]',
-                ]
-                raw_orders = []
-                for pat in patterns:
-                    m = _re.search(pat, r.text, _re.DOTALL)
-                    if m:
+                    for method, url, payload in api_candidates:
                         try:
-                            parsed = _json.loads(m.group(1))
-                            if isinstance(parsed, list):
-                                raw_orders = parsed
-                            elif isinstance(parsed, dict):
-                                raw_orders = (
-                                    parsed.get("orders", []) or
-                                    parsed.get("inwork", []) or []
-                                )
-                            break
-                        except Exception:
-                            pass
+                            hdrs = self._web_headers()
+                            hdrs["X-Requested-With"] = "XMLHttpRequest"
+                            hdrs["Accept"] = "application/json, text/javascript, */*; q=0.01"
+                            if method == "POST":
+                                resp = await client.post(url, headers=hdrs, data=payload or {})
+                            else:
+                                resp = await client.get(url, headers=hdrs)
+                            if resp.status_code != 200:
+                                continue
+                            ctype = resp.headers.get("content-type", "")
+                            if "json" not in ctype and not resp.text.strip().startswith(("{", "[")):
+                                continue
+                            try:
+                                jdata = resp.json()
+                            except Exception:
+                                continue
+                            # Kwork wraps responses as {success, response: {...}} or {data: [...]}
+                            payload_obj = jdata.get("response") if isinstance(jdata, dict) else jdata
+                            candidates = []
+                            if isinstance(payload_obj, list):
+                                candidates = payload_obj
+                            elif isinstance(payload_obj, dict):
+                                for k in ("orders", "inwork", "items", "data", "list"):
+                                    v = payload_obj.get(k)
+                                    if isinstance(v, list) and v:
+                                        candidates = v
+                                        break
+                            if candidates:
+                                raw_orders = candidates
+                                logger.info(f"[KworkManager] check_accepted_orders: API hit {url} → {len(candidates)} order(s)")
+                                break
+                        except Exception as _ae:
+                            logger.debug(f"[KworkManager] endpoint {url} failed: {_ae}")
+
+                    # Fallback: HTML scraping with broader patterns
+                    if not raw_orders:
+                        try:
+                            r = await client.get(
+                                f"{self.WEB_BASE}/user/orders",
+                                headers=self._web_headers(),
+                            )
+                            patterns = [
+                                r'window\.stateData\s*=\s*(\{.+?\});',
+                                r'__INITIAL_STATE__\s*=\s*(\{.*?\})\s*;',
+                                r'"orders"\s*:\s*(\[.*?\])\s*[,}]',
+                                r'"inwork"\s*:\s*(\[.*?\])\s*[,}]',
+                            ]
+                            for pat in patterns:
+                                m = _re.search(pat, r.text, _re.DOTALL)
+                                if not m:
+                                    continue
+                                try:
+                                    parsed = _json.loads(m.group(1))
+                                except Exception:
+                                    continue
+                                if isinstance(parsed, list):
+                                    raw_orders = parsed
+                                elif isinstance(parsed, dict):
+                                    # Walk the tree looking for an "orders"/"inwork" list
+                                    def _find_orders(obj, depth=0):
+                                        if depth > 6 or not isinstance(obj, (dict, list)):
+                                            return None
+                                        if isinstance(obj, dict):
+                                            for k in ("orders", "inwork", "activeOrders", "items"):
+                                                v = obj.get(k)
+                                                if isinstance(v, list) and v and isinstance(v[0], dict):
+                                                    return v
+                                            for v in obj.values():
+                                                found = _find_orders(v, depth + 1)
+                                                if found:
+                                                    return found
+                                        else:
+                                            for v in obj:
+                                                found = _find_orders(v, depth + 1)
+                                                if found:
+                                                    return found
+                                        return None
+                                    found = _find_orders(parsed)
+                                    if found:
+                                        raw_orders = found
+                                if raw_orders:
+                                    logger.info(f"[KworkManager] check_accepted_orders: HTML scrape → {len(raw_orders)} order(s)")
+                                    break
+                        except Exception as _he:
+                            logger.debug(f"[KworkManager] HTML fallback failed: {_he}")
 
                 # Build order dicts from web-scraped data
                 for o in raw_orders:
                     if isinstance(o, dict):
                         orders.append({
-                            "id": o.get("id") or o.get("order_id", ""),
-                            "title": o.get("title") or o.get("name") or "Заказ Kwork",
-                            "price": o.get("price") or o.get("amount") or 0,
-                            "buyer_id": o.get("buyer_id") or o.get("user_id") or "",
+                            "id": o.get("id") or o.get("order_id") or o.get("orderId", ""),
+                            "title": o.get("title") or o.get("name") or o.get("project_name") or "Заказ Kwork",
+                            "price": o.get("price") or o.get("amount") or o.get("total_price") or 0,
+                            "buyer_id": o.get("buyer_id") or o.get("user_id") or o.get("buyerId", ""),
                         })
                 if not orders:
-                    logger.debug("[KworkManager] check_accepted_orders: нет данных из веб-страницы (JS-рендеринг)")
+                    logger.debug("[KworkManager] check_accepted_orders: ни один endpoint/scrape не вернул заказов "
+                                 "(возможно их и правда нет — это нормально)")
                     return 0
             else:
                 # Mobile API mode
@@ -6930,6 +7000,8 @@ class AgentContext:
     review_approved: bool = False
     review_score: int = 0
     deliverable_path: str = ""
+    deliverable_zip: str = ""
+    deliverable_url: str = ""
     iteration: int = 0
     errors: List[str] = field(default_factory=list)
     # v4.0 Execution additions
@@ -10601,6 +10673,27 @@ class PackagerAgent(BaseAgent):
             json.dump(report, f, ensure_ascii=False, indent=2)
 
         ctx.deliverable_path = out
+
+        # ── v15.1: Auto-pack to ZIP for one-click download ──
+        try:
+            import zipfile
+            zip_path = out + ".zip"
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for root, _dirs, files in os.walk(out):
+                    for fn in files:
+                        full = os.path.join(root, fn)
+                        arc = os.path.relpath(full, out)
+                        zf.write(full, arc)
+            ctx.deliverable_zip = zip_path
+            # Build public URL (Replit dev domain) for client/owner one-click download
+            dev_domain = os.getenv("REPLIT_DEV_DOMAIN") or os.getenv("REPLIT_DOMAINS", "").split(",")[0]
+            if dev_domain:
+                ctx.deliverable_url = f"https://{dev_domain}/download/{safe}"
+            logger.info(f"[{self.name}] 📦 ZIP → {zip_path} "
+                        f"({os.path.getsize(zip_path)//1024} KB)")
+        except Exception as _ze:
+            logger.warning(f"[{self.name}] ZIP packaging failed: {_ze}")
+
         logger.info(f"[{self.name}] ✓ [{ptype}] → {out} "
                     f"({len(ctx.code_files)} files)")
         return ctx
@@ -13653,6 +13746,11 @@ class OrderOrchestrator:
                 deploy_note = f"\n🚀 Live: {ctx.live_url} [{ctx.deploy_provider.upper()}]"
             elif ctx.deploy_provider == "none":
                 deploy_note = "\n📋 Deploy: инструкции в DELIVERY.md"
+            download_note = ""
+            if ctx.deliverable_url:
+                download_note = f"\n⬇️ <b>Скачать ZIP:</b> {ctx.deliverable_url}"
+            elif ctx.deliverable_zip:
+                download_note = f"\n📦 ZIP: {ctx.deliverable_zip}"
             await send_telegram(
                 f"🤖 <b>Заказ выполнен!</b>\n"
                 f"📋 {title} [{ptype}]\n"
@@ -13660,8 +13758,10 @@ class OrderOrchestrator:
                 f"| Оценка: {ctx.review_score}/10\n"
                 f"{sec_note}"
                 f"{deploy_note}\n"
-                f"📦 Файлов: {len(all_files)} | 🔄 Итераций: {ctx.iteration}\n"
-                f"📁 {ctx.deliverable_path}"
+                f"📦 Файлов: {len(all_files)} | 🔄 Итераций: {ctx.iteration}"
+                f"{download_note}\n"
+                f"📁 {ctx.deliverable_path}\n"
+                f"⚠️ Прикрепите ZIP к заказу на Kwork вручную"
             )
             # ── v6.0 Pillar 1: Post-project feedback loop ─────────
             _delivery_time = asyncio.get_event_loop().time() - _exec_start
