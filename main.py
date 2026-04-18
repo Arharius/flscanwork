@@ -15227,6 +15227,53 @@ async def main():
         replace_existing=True,
     )
 
+    # v15.5: Daily DB backup with 7-day rotation — protects learning history & queue
+    def _daily_db_backup():
+        try:
+            import shutil, glob
+            from datetime import datetime as _dt
+            backup_dir = os.path.join(BASE_DIR, "backups")
+            os.makedirs(backup_dir, exist_ok=True)
+            src = os.path.join(BASE_DIR, "jobs.db")
+            if not os.path.exists(src):
+                return
+            stamp = _dt.utcnow().strftime("%Y%m%d_%H%M%S")
+            dst = os.path.join(backup_dir, f"jobs_{stamp}.db")
+            # Use SQLite backup API for consistency under writes
+            import sqlite3
+            with sqlite3.connect(src) as _src_c, sqlite3.connect(dst) as _dst_c:
+                _src_c.backup(_dst_c)
+            size_kb = os.path.getsize(dst) // 1024
+            logger.info(f"[Backup] ✅ DB → {os.path.basename(dst)} ({size_kb} KB)")
+            # Rotate: keep last 7
+            backups = sorted(glob.glob(os.path.join(backup_dir, "jobs_*.db")))
+            for old in backups[:-7]:
+                try:
+                    os.remove(old)
+                    logger.debug(f"[Backup] Rotated out: {os.path.basename(old)}")
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"[Backup] DB backup failed: {e}")
+
+    scheduler.add_job(
+        _daily_db_backup,
+        trigger=CronTrigger(hour=3, minute=15),
+        id="daily_db_backup",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    # Also run once at startup (60s after launch — past self-test) for fresh backup
+    from datetime import datetime as _dt_now, timedelta as _td_now
+    scheduler.add_job(
+        _daily_db_backup,
+        trigger="date",
+        run_date=_dt_now.utcnow() + _td_now(seconds=60),
+        id="initial_db_backup",
+        replace_existing=True,
+        misfire_grace_time=600,
+    )
+
     # v15.3: Process scheduled follow-ups (satisfaction checks + review requests)
     async def _process_followups():
         try:

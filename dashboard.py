@@ -1539,6 +1539,9 @@ def index():
     return render_template_string(HTML)
 
 
+# /health route is defined later (extended in v15.5)
+
+
 @app.route("/api/my-proposals")
 def api_my_proposals():
     """Все мои отклики, отсортированные по статусу для главного экрана."""
@@ -2386,7 +2389,27 @@ def api_profile_setup():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "bot": "FreelanceBot v15.0"})
+    """v15.5: Extended health check for uptime monitoring (UptimeRobot, etc.)."""
+    import time, sqlite3
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.db")
+    out = {"status": "ok", "bot": "FreelanceBot v15.5", "timestamp": int(time.time())}
+    try:
+        conn = sqlite3.connect(db_path, timeout=2.0)
+        c = conn.execute("SELECT COUNT(*) FROM jobs")
+        out["jobs_total"] = c.fetchone()[0]
+        c = conn.execute("SELECT COUNT(*) FROM proposals WHERE status='sent'")
+        out["proposals_sent"] = c.fetchone()[0]
+        try:
+            c = conn.execute("SELECT COUNT(*) FROM client_followups WHERE sent_at IS NULL")
+            out["followups_pending"] = c.fetchone()[0]
+        except Exception:
+            out["followups_pending"] = 0
+        conn.close()
+    except Exception as e:
+        out["status"] = "degraded"
+        out["error"] = str(e)[:100]
+        return jsonify(out), 503
+    return jsonify(out)
 
 
 @app.route("/download/<safe_id>")
