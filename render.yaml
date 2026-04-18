@@ -2,16 +2,12 @@ services:
   - type: web
     name: freelancebot
     runtime: python
-    plan: starter            # $7/mo — нужен для Persistent Disk и работы 24/7 без сна
+    plan: free               # бесплатный план — 750ч/мес, засыпает после 15 мин без трафика
     region: frankfurt        # ближе к Москве — меньше latency к Kwork/FL.ru
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
     healthCheckPath: /health
     autoDeploy: true         # автодеплой при push в main на GitHub
-    disk:
-      name: freelancebot-data
-      mountPath: /opt/render/project/src/data
-      sizeGB: 1              # для jobs.db, deliverables/, backups/
     envVars:
       # ── LLM провайдеры ──
       - key: DEEPSEEK_API_KEY
