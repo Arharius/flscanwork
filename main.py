@@ -60,6 +60,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import bot_state as _bot_state
+
 # Base directory for data files (absolute path)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -4359,6 +4361,7 @@ class KworkPlatform(BasePlatform):
                 # If redirected to login page — session expired
                 if "login" in str(r1.url) or "account/login" in str(r1.url):
                     logger.warning(f"[{self.name}] Сессия истекла — нужно обновить KWORK_SESSION_COOKIE")
+                    _bot_state.set_kwork_cookie_valid(False, "Сессия истекла — нужно обновить KWORK_SESSION_COOKIE в Secrets")
                     return False
                 if r1.status_code != 200:
                     logger.warning(f"[{self.name}] Проект {pid} недоступен (status={r1.status_code})")
@@ -4396,12 +4399,14 @@ class KworkPlatform(BasePlatform):
                     # 302 to login = auth failure; 302 to project/success = OK
                     if "login" in location or "account" in location:
                         logger.warning(f"[{self.name}] Сессия истекла (redirect to login) — обновите KWORK_SESSION_COOKIE")
+                        _bot_state.set_kwork_cookie_valid(False, "Сессия истекла — обновите KWORK_SESSION_COOKIE в Secrets")
                         return False
                     else:
                         logger.info(f"[{self.name}] ✓ Отклик принят (redirect → {location[:80]})")
                         return True
                 elif r2.status_code == 401:
                     logger.warning(f"[{self.name}] Сессия истекла (401) — нужно обновить KWORK_SESSION_COOKIE")
+                    _bot_state.set_kwork_cookie_valid(False, "Сессия истекла (401) — обновите KWORK_SESSION_COOKIE в Secrets")
                 else:
                     logger.warning(f"[{self.name}] Want status={r2.status_code} для {pid}: {r2.text[:200]}")
 
@@ -4620,6 +4625,7 @@ class KworkManager:
             self._token = f"session_cookie_{time.monotonic()}"
             self._token_expires = time.monotonic() + 43200  # 12h
             logger.info("[KworkManager] ✓ Авторизован через session cookie")
+            _bot_state.set_kwork_cookie_valid(True)
             return True
 
         logger.info("[KworkManager] Аутентификация на Kwork...")

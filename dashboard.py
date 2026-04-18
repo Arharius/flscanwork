@@ -123,6 +123,12 @@ tr:hover td{background:var(--surface2)}
 .bg-gray{background:#2d3748;color:#a0aec0}
 .platform-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600;background:#2d3748;color:var(--blue)}
 
+/* ── Cookie Warning Banner ── */
+.cookie-banner{display:none;padding:10px 28px;font-size:.85rem;font-weight:600;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.cookie-banner.warn{background:#744210;color:var(--yellow);display:flex}
+.cookie-banner.error{background:#742a2a;color:var(--red);display:flex}
+.cookie-banner a{color:inherit;text-decoration:underline;cursor:pointer}
+
 /* ── Buttons ── */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:7px;font-size:.84rem;font-weight:600;cursor:pointer;border:none;transition:.15s}
 .btn-primary{background:var(--blue);color:#0f1117}
@@ -264,6 +270,9 @@ textarea{resize:vertical;min-height:80px;font-family:inherit}
   <div class="tab" onclick="switchTab('control')">🎛️ Управление</div>
   <div class="tab" onclick="switchTab('profile')">👤 Профиль</div>
 </div>
+
+<!-- ── Cookie Warning Banner ── -->
+<div id="cookie-banner" class="cookie-banner"></div>
 
 <main>
 
@@ -1440,17 +1449,44 @@ function proposalBadge(status, isRelevant) {
   return '<span class="badge bg-gray">Ожидание</span>';
 }
 
+// ── Cookie Status Banner ─────────────────────────────────
+async function checkCookieStatus() {
+  try {
+    const r = await fetch('/api/cookie-status');
+    const d = await r.json();
+    const banner = document.getElementById('cookie-banner');
+    const kw = d.kwork;
+
+    if (!kw.configured) {
+      banner.className = 'cookie-banner error';
+      banner.innerHTML = '🔴 KWORK_SESSION_COOKIE не задан — бот не может отправлять отклики. Добавьте куки Kwork в Secrets.';
+    } else if (kw.valid === false) {
+      banner.className = 'cookie-banner error';
+      banner.innerHTML = `🔴 Сессия Kwork истекла! ${esc(kw.error)} Откройте kwork.ru в браузере → DevTools → Storage → Cookies и обновите секрет KWORK_SESSION_COOKIE.`;
+    } else if (kw.valid === true) {
+      banner.className = 'cookie-banner';
+      banner.style.display = 'none';
+    } else {
+      banner.className = 'cookie-banner';
+      banner.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
 // ── Init ────────────────────────────────────────────────
 async function init() {
   const r = await fetch('/api/data');
   const d = await r.json();
   updatePauseBtn(d.paused);
   loadOverview();
+  checkCookieStatus();
 }
 
 // Auto-refresh every 30s on overview, 5min on messages tab
 setInterval(() => { if(currentTab==='overview') loadOverview(); }, 30000);
 setInterval(() => { if(currentTab==='messages') loadMessages(); }, 300000);
+// Re-check cookie status every 5 min
+setInterval(checkCookieStatus, 300000);
 
 // Check unread messages badge every 3 minutes in background
 async function checkMsgBadge() {
@@ -2326,6 +2362,32 @@ def api_profile_setup():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok", "bot": "FreelanceBot v15.0"})
+
+
+@app.route("/api/cookie-status")
+def api_cookie_status():
+    """Returns Kwork session cookie health status."""
+    try:
+        import bot_state as _bs
+        kwork = _bs.get_kwork_cookie_status()
+        flru = _bs.get_flru_cookie_status()
+    except Exception:
+        kwork = {"valid": None, "checked_at": "", "error": "", "set_at": ""}
+        flru = {"valid": None, "checked_at": "", "error": "", "set_at": ""}
+
+    has_kwork = bool(os.environ.get("KWORK_SESSION_COOKIE", "").strip())
+    has_flru = bool(os.environ.get("FL_SESSION_COOKIE", "").strip())
+
+    return jsonify({
+        "kwork": {
+            **kwork,
+            "configured": has_kwork,
+        },
+        "flru": {
+            **flru,
+            "configured": has_flru,
+        },
+    })
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
