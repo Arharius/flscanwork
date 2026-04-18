@@ -11199,24 +11199,61 @@ class PackagerAgent(BaseAgent):
     # ── v15.4: Smoke check (syntax + import structure) ───────
 
     def _smoke_check(self, out: str, ctx: AgentContext) -> List[str]:
-        """Syntax-validate every .py file via in-memory compile (no .pyc artifacts)."""
+        """v15.6 World-class static gate: ast.parse + anti-pattern scan.
+        Blocks delivery on syntax errors AND on dangerous patterns proven to
+        break production: bare except, eval/exec, shell=True, print(token).
+        No .pyc artifacts written.
+        """
+        import ast as _ast
         issues: List[str] = []
+        ANTI_PATTERNS = [
+            (_re.compile(r'^\s*except\s*:\s*$', _re.M),
+             "BARE_EXCEPT (swallows KeyboardInterrupt/SystemExit — use 'except Exception:')"),
+            (_re.compile(r'\beval\s*\('),
+             "EVAL (arbitrary code execution risk)"),
+            (_re.compile(r'\bexec\s*\('),
+             "EXEC (arbitrary code execution risk)"),
+            (_re.compile(r'subprocess\.(?:call|run|Popen)[^)]*shell\s*=\s*True'),
+             "SHELL_TRUE (command injection risk — use shell=False with list args)"),
+            (_re.compile(r'print\s*\([^)]*(?:token|password|secret|api_key|auth)', _re.I),
+             "SECRET_LEAK (printing secret/token to stdout)"),
+            (_re.compile(r'(?:password|api_key|secret_key|token)\s*=\s*["\'][A-Za-z0-9_\-]{12,}["\']', _re.I),
+             "HARDCODED_SECRET (use os.getenv() instead)"),
+            (_re.compile(r'^\s*from\s+\S+\s+import\s+\*', _re.M),
+             "WILDCARD_IMPORT (pollutes namespace, hides dependencies)"),
+        ]
         for root, _dirs, files in os.walk(out):
-            # never traverse cache dirs
             if "__pycache__" in root:
                 continue
             for fn in files:
                 if not fn.endswith(".py"):
                     continue
                 full = os.path.join(root, fn)
+                rel = os.path.relpath(full, out)
                 try:
                     with open(full, "r", encoding="utf-8") as _fp:
                         src = _fp.read()
-                    compile(src, full, "exec")  # in-memory; no .pyc written
-                except SyntaxError as e:
-                    issues.append(f"SYNTAX: {fn}:{e.lineno}: {e.msg}")
                 except Exception as e:
-                    issues.append(f"COMPILE: {fn}: {str(e)[:150]}")
+                    issues.append(f"READ: {rel}: {e}")
+                    continue
+                # 1) AST parse — strict syntax + structure check
+                try:
+                    _ast.parse(src, filename=full)
+                except SyntaxError as e:
+                    issues.append(f"SYNTAX: {rel}:{e.lineno}: {e.msg}")
+                    continue  # broken syntax → skip pattern scan
+                # 2) Compile (catches deeper issues like null bytes)
+                try:
+                    compile(src, full, "exec")
+                except Exception as e:
+                    issues.append(f"COMPILE: {rel}: {str(e)[:150]}")
+                    continue
+                # 3) Anti-pattern scan
+                for pat, label in ANTI_PATTERNS:
+                    m = pat.search(src)
+                    if m:
+                        line_no = src.count("\n", 0, m.start()) + 1
+                        issues.append(f"ANTIPATTERN: {rel}:{line_no}: {label}")
         return issues
 
 
@@ -14373,7 +14410,30 @@ async def check_execution_queue():
     """v15.5: Picks up queued orders and executes up to MAX_CONCURRENT in parallel.
     Each project runs in its own AgentContext, so quality is preserved.
     LLM/CPU pressure naturally limits us — concurrent_pm enforces the hard cap.
+
+    v15.6: Deadline-aware monitoring — alert on long-running executions
+    (>4h = risk of missing client deadline).
     """
+    # v15.6: Check for stuck/long-running executions BEFORE picking new work
+    try:
+        rows = db.conn.execute('''
+            SELECT e.id, j.external_id, j.title,
+                   (julianday('now') - julianday(e.started_at)) * 24.0 AS hours_running
+            FROM order_executions e
+            JOIN jobs j ON j.id = e.job_id
+            WHERE e.status='running'
+        ''').fetchall()
+        for r in rows:
+            hrs = float(r["hours_running"] or 0)
+            if hrs > 4.0:
+                logger.warning(
+                    f"[Queue] ⏰ DEADLINE RISK: order {r['external_id']} "
+                    f"'{(r['title'] or '')[:50]}' running {hrs:.1f}h — "
+                    f"may miss client deadline"
+                )
+    except Exception as _de:
+        logger.debug(f"[Queue] deadline monitor error: {_de}")
+
     queued = db.get_queued_jobs()
     if not queued:
         return
