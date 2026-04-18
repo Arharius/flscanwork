@@ -268,6 +268,7 @@ textarea{resize:vertical;min-height:80px;font-family:inherit}
 <header>
   <h1>🤖 FreelanceBot <span style="font-size:.85rem;color:var(--muted)">Control Panel</span></h1>
   <div class="flex">
+    <a href="/knowledge" style="color:var(--accent,#58a6ff);text-decoration:none;margin-right:16px;font-size:14px">📚 База знаний</a>
     <button id="pause-btn" class="status-pill" onclick="togglePause()">…</button>
     <span id="header-time" style="margin-left:16px"></span>
   </div>
@@ -1540,6 +1541,265 @@ def index():
 
 
 # /health route is defined later (extended in v15.5)
+
+
+# ============================================================
+# v15.7: Knowledge Base — two tabs (Bot guide + Python lessons)
+# ============================================================
+KNOWLEDGE_HTML = r"""<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>База знаний — FreelanceBot</title>
+<style>
+:root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#c9d1d9;
+        --accent:#58a6ff; --green:#3fb950; --yellow:#d29922; --code:#1f2428; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif;
+       background:var(--bg); color:var(--text); line-height:1.6; }
+header { background:var(--panel); padding:16px 24px; border-bottom:1px solid var(--border);
+         display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+header h1 { margin:0; font-size:20px; }
+header a { color:var(--accent); text-decoration:none; font-size:14px; }
+.tabs { display:flex; gap:4px; background:var(--panel); padding:0 24px;
+        border-bottom:1px solid var(--border); overflow-x:auto; }
+.tab { padding:14px 20px; cursor:pointer; border:none; background:none; color:var(--text);
+       font-size:15px; border-bottom:2px solid transparent; white-space:nowrap; }
+.tab.active { border-bottom-color:var(--accent); color:var(--accent); font-weight:600; }
+main { max-width:900px; margin:0 auto; padding:24px; }
+.panel { display:none; }
+.panel.active { display:block; }
+h2 { color:var(--accent); margin-top:32px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+h3 { color:var(--text); margin-top:24px; }
+code { background:var(--code); padding:2px 6px; border-radius:4px; font-size:13px;
+       color:#79c0ff; }
+pre { background:var(--code); padding:14px; border-radius:6px; overflow-x:auto;
+      border:1px solid var(--border); }
+pre code { background:none; padding:0; color:var(--text); }
+.tip { background:rgba(63,185,80,0.1); border-left:3px solid var(--green);
+       padding:12px 16px; margin:16px 0; border-radius:4px; }
+.warn { background:rgba(210,153,34,0.1); border-left:3px solid var(--yellow);
+        padding:12px 16px; margin:16px 0; border-radius:4px; }
+ul, ol { padding-left:24px; }
+li { margin:6px 0; }
+kbd { background:var(--code); border:1px solid var(--border); border-radius:3px;
+      padding:1px 6px; font-size:12px; }
+</style></head>
+<body>
+<header>
+  <h1>📚 База знаний FreelanceBot</h1>
+  <a href="/">← На дашборд</a>
+</header>
+<div class="tabs">
+  <button class="tab active" data-target="howto">🤖 Как пользоваться ботом</button>
+  <button class="tab" data-target="python">🐍 Уроки Python</button>
+</div>
+<main>
+
+<section id="howto" class="panel active">
+  <h2>1. Что делает бот</h2>
+  <p>Бот каждые 20 минут проверяет Kwork и FL.ru, ищет подходящие заказы по Python/автоматизации,
+  пишет персональные отклики через ИИ (DeepSeek) и отправляет их с вашего аккаунта.
+  Когда клиент отвечает — бот общается, выполняет заказ (генерирует код, тесты, README в ZIP)
+  и отправляет результат в личку.</p>
+
+  <h2>2. Главный экран (дашборд)</h2>
+  <ul>
+    <li><b>Pipeline</b> — сколько откликов отправлено, сколько ответили, сколько в работе</li>
+    <li><b>Revenue</b> — сумма по активным проектам и месячный прогноз</li>
+    <li><b>Hot Skills</b> — какие навыки сейчас платят больше</li>
+    <li><b>Optimal Times</b> — лучшее время отправки откликов на каждой бирже (UTC)</li>
+  </ul>
+  <div class="tip">💡 <b>Все цифры — реальные.</b> Бот не использует заглушки.
+  Если видите $0 — значит реально 0 (например, ещё нет завершённых сделок).</div>
+
+  <h2>3. Управление ботом</h2>
+  <h3>Поставить на паузу</h3>
+  <p>В Telegram-боте: команда <code>/pause</code>. Бот перестанет искать новые заказы
+  и отправлять отклики (текущие проекты доделает). Возобновить: <code>/resume</code>.</p>
+  <div class="warn">⚠️ Сейчас Telegram отключён — нужны секреты <code>TELEGRAM_BOT_TOKEN</code>
+  и <code>TELEGRAM_CHAT_ID</code>. Скажите когда добавить — подключу.</div>
+
+  <h3>Проверить здоровье системы</h3>
+  <p>Откройте <code>/health</code> — увидите JSON со статусом БД, числом заказов и активных задач.
+  Полезно подключить к UptimeRobot для уведомлений если бот упал.</p>
+
+  <h2>4. Обновление сессионных куков (раз в 1–3 месяца)</h2>
+  <p>Куки Kwork и FL.ru со временем устаревают. Когда это случится, в логах появится
+  <code>⛔ KWORK_SESSION_COOKIE истёк</code> или <code>FL_SESSION_COOKIE невалиден</code>.</p>
+  <h3>Как обновить куку Kwork:</h3>
+  <ol>
+    <li>Зайдите на <code>kwork.ru</code> с компьютера в обычном браузере (Chrome/Edge)</li>
+    <li>Войдите в свой аккаунт</li>
+    <li>Нажмите <kbd>F12</kbd> → вкладка <b>Application</b> → раздел <b>Cookies</b> → <code>https://kwork.ru</code></li>
+    <li>Найдите строку <code>track</code> (или <code>session</code>) — скопируйте её <b>Value</b></li>
+    <li>В Replit: вкладка <b>Secrets</b> (🔒 в левой панели) → найдите <code>KWORK_SESSION_COOKIE</code> → вставьте новое значение → Save</li>
+    <li>Перезапустите проект кнопкой Run</li>
+  </ol>
+  <h3>Куку FL.ru обновляют так же</h3>
+  <p>Только секрет называется <code>FL_SESSION_COOKIE</code>, а зайти надо на <code>fl.ru</code>.
+  Имя куки чаще всего <code>id</code> или <code>PHPSESSID</code>.</p>
+
+  <h2>5. Когда приходят деньги</h2>
+  <ol>
+    <li>Бот находит заказ → отправляет отклик</li>
+    <li>Клиент пишет в личку → бот отвечает, согласовывает детали</li>
+    <li>Клиент создаёт «Безопасную сделку» (Kwork) или «Договор» (FL.ru) и кладёт деньги в эскроу</li>
+    <li>Бот выполняет заказ, отдаёт ZIP с кодом и README</li>
+    <li>Клиент проверяет → подтверждает приёмку → деньги падают на ваш баланс на бирже</li>
+    <li>Вывод денег: вручную с биржи на карту/кошелёк (минимум обычно 500 ₽)</li>
+  </ol>
+  <div class="tip">💰 <b>Реалистичный прогноз:</b> первый месяц — отзывы накапливаются,
+  выйти можно на 30–80 тыс. ₽. Через 3–6 месяцев при стабильной работе и хороших отзывах —
+  150–300 тыс. ₽/мес. Это требует времени и качества.</div>
+
+  <h2>6. Что делать если что-то сломалось</h2>
+  <ul>
+    <li><b>Не приходят отклики</b> — проверьте куку Kwork (см. п.4)</li>
+    <li><b>FL.ru = 403</b> — Replit IP в чёрном списке у FL.ru, нужен резидентный прокси (~$10/мес)</li>
+    <li><b>Бот завис</b> — нажмите Stop → Run в Replit, или перезапустите workflow</li>
+    <li><b>Клиент жалуется на качество</b> — проверьте папку <code>deliverables/</code>, при необходимости доработайте вручную и повторно отправьте</li>
+  </ul>
+</section>
+
+<section id="python" class="panel">
+  <h2>Урок 1. С чего начать Python</h2>
+  <p>Python — это язык программирования. Мы пишем команды текстом, компьютер их выполняет.</p>
+  <pre><code>print("Привет, мир!")</code></pre>
+  <p>Это самая простая программа. <code>print</code> — функция, которая выводит текст на экран.
+  Запустите её — увидите «Привет, мир!».</p>
+
+  <h2>Урок 2. Переменные и типы данных</h2>
+  <p>Переменная — это «коробка» с именем, в которую можно положить значение:</p>
+  <pre><code>name = "Аркадий"          # строка (текст)
+age = 30                  # целое число
+balance = 1500.50         # дробное число
+is_active = True          # булево (True/False)
+
+print(f"Привет, {name}! Тебе {age} лет.")</code></pre>
+  <p>Знак <code>=</code> — присвоение. Префикс <code>f</code> у строки позволяет вставлять
+  переменные через <code>{ }</code>.</p>
+
+  <h2>Урок 3. Условия (if/else)</h2>
+  <pre><code>balance = 5000
+
+if balance &gt; 10000:
+    print("Можно купить квадрокоптер")
+elif balance &gt; 1000:
+    print("Можно купить книгу")
+else:
+    print("Только хлеб")</code></pre>
+  <p>Отступы (4 пробела) важны — Python ими определяет, что относится к блоку.</p>
+
+  <h2>Урок 4. Списки и циклы</h2>
+  <pre><code>orders = ["Бот", "Сайт", "Парсер", "API"]
+
+for order in orders:
+    print(f"Делаю заказ: {order}")
+
+print(f"Всего заказов: {len(orders)}")</code></pre>
+  <p><code>for ... in</code> — перебирает элементы по одному. <code>len()</code> — длина списка.</p>
+
+  <h2>Урок 5. Функции</h2>
+  <p>Функция — это блок кода с именем, который можно переиспользовать:</p>
+  <pre><code>def calculate_commission(price, rate=0.1):
+    "Считает комиссию биржи."
+    return price * rate
+
+fee = calculate_commission(10000)        # 1000.0
+fee2 = calculate_commission(10000, 0.15) # 1500.0 (Kwork)</code></pre>
+  <p><code>def</code> объявляет функцию. <code>return</code> возвращает результат.
+  <code>rate=0.1</code> — значение по умолчанию.</p>
+
+  <h2>Урок 6. Словари (как у нас в боте)</h2>
+  <pre><code>job = {
+    "title": "Telegram бот для магазина",
+    "budget": 25000,
+    "platform": "Kwork",
+}
+
+print(job["title"])              # доступ по ключу
+job["status"] = "in_progress"    # добавить новое поле
+print(len(job))                  # 4 ключа</code></pre>
+
+  <h2>Урок 7. Работа с файлами</h2>
+  <pre><code># Запись
+with open("notes.txt", "w", encoding="utf-8") as f:
+    f.write("Первая заметка\n")
+    f.write("Вторая заметка\n")
+
+# Чтение
+with open("notes.txt", "r", encoding="utf-8") as f:
+    text = f.read()
+    print(text)</code></pre>
+  <p>Конструкция <code>with ... as</code> автоматически закроет файл.</p>
+
+  <h2>Урок 8. Обработка ошибок</h2>
+  <pre><code>try:
+    result = 100 / 0
+except ZeroDivisionError as e:
+    print(f"Ошибка: {e}")
+    result = 0
+finally:
+    print("Это выполнится всегда")</code></pre>
+  <div class="warn">⚠️ Никогда не пишите <code>except:</code> без указания типа —
+  это поглощает <kbd>Ctrl+C</kbd> и системные сигналы. Всегда <code>except Exception:</code> минимум.
+  Наш бот это проверяет автоматически.</div>
+
+  <h2>Урок 9. Классы (объекты)</h2>
+  <pre><code>class Order:
+    def __init__(self, title, budget):
+        self.title = title
+        self.budget = budget
+        self.status = "new"
+
+    def commission(self, rate=0.15):
+        return self.budget * rate
+
+order = Order("Парсер", 8000)
+print(order.commission())   # 1200.0
+print(order.title)          # Парсер</code></pre>
+
+  <h2>Урок 10. Внешние библиотеки</h2>
+  <p>Python мощен благодаря тысячам готовых библиотек. Установка:</p>
+  <pre><code>pip install requests</code></pre>
+  <p>Использование (запрос к сайту):</p>
+  <pre><code>import requests
+
+r = requests.get("https://api.github.com")
+print(r.status_code)        # 200
+print(r.json()["current_user_url"])</code></pre>
+
+  <h2>Что дальше</h2>
+  <ul>
+    <li><b>asyncio</b> — асинхронность, наш бот её активно использует</li>
+    <li><b>FastAPI / Flask</b> — веб-серверы (наш дашборд на Flask)</li>
+    <li><b>SQLAlchemy / sqlite3</b> — работа с базами данных</li>
+    <li><b>aiogram</b> — Telegram-боты на Python</li>
+    <li><b>BeautifulSoup / lxml</b> — парсинг HTML (Kwork-парсер у нас на этом)</li>
+  </ul>
+  <div class="tip">📖 Бесплатные ресурсы на русском: <b>stepik.org</b> (курс «Поколение Python»),
+  <b>pythontutor.ru</b>, документация на <b>docs.python.org/ru/3</b>.</div>
+</section>
+
+</main>
+<script>
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.target).classList.add('active');
+    window.scrollTo(0, 0);
+  });
+});
+</script>
+</body></html>
+"""
+
+
+@app.route("/knowledge")
+def knowledge_base():
+    return KNOWLEDGE_HTML
 
 
 @app.route("/api/my-proposals")
