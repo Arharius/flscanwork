@@ -7,8 +7,22 @@ import os
 import sqlite3
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template_string, request
+
+
+def _to_msk(ts: str) -> str:
+    """Convert UTC timestamp string to Moscow time (UTC+3) for display."""
+    if not ts:
+        return ""
+    s = str(ts).replace("T", " ")[:19]
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(s, fmt) + timedelta(hours=3)
+            return dt.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            continue
+    return s[:16]
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -1552,7 +1566,7 @@ def api_my_proposals():
 
         proposals = []
         for r in rows:
-            sent = (r["sent_at"] or "")[:16].replace("T", " ")
+            sent = _to_msk(r["sent_at"] or "")
             proposals.append(dict(
                 proposal_id=r["proposal_id"],
                 status=r["status"] or "sent",
@@ -1816,7 +1830,7 @@ def api_inbox():
             items.append(dict(
                 type=r["status"], platform=r["platform"],
                 description=f"Клиент {'ответил' if r['status']=='replied' else 'просмотрел'}: {r['title'][:70]}",
-                date=(r["sent_at"] or "")[:16], url=r["url"]
+                date=_to_msk(r["sent_at"] or ""), url=r["url"]
             ))
         # Active executions
         rows3 = conn.execute(
@@ -2443,7 +2457,7 @@ def _fetch_platforms(conn):
             "JOIN jobs j ON j.id=pr.job_id WHERE j.platform=? AND po.outcome IN ('won','accepted','hired')", (p,)
         ).fetchone()[0]
         wr = round(wins_cnt / prop_cnt * 100, 1) if prop_cnt > 0 else 0
-        checked = (r["checked_at"] or "")[:16]
+        checked = _to_msk(r["checked_at"] or "")
         result.append(dict(platform=p, status=r["status"] or "ok", jobs=jobs_cnt,
                            proposals=prop_cnt, wins=wins_cnt, wr=wr, checked=checked or "—"))
     return result
