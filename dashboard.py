@@ -1457,6 +1457,8 @@ async function checkCookieStatus() {
     const banner = document.getElementById('cookie-banner');
     const kw = d.kwork;
 
+    // Always reset inline styles before applying new state
+    banner.style.cssText = '';
     if (!kw.configured) {
       banner.className = 'cookie-banner error';
       banner.innerHTML = '🔴 KWORK_SESSION_COOKIE не задан — бот не может отправлять отклики. Добавьте куки Kwork в Secrets.';

@@ -4641,30 +4641,43 @@ class KworkManager:
                     self._cookies[k.strip()] = v.strip()
             self._token = f"session_cookie_{time.monotonic()}"
             self._token_expires = time.monotonic() + 43200  # 12h
-            # Log expiry info
+            # Log expiry info and set validity based on parsed expiry date
             if days_remaining is not None:
                 if days_remaining < 0:
                     logger.error(
                         f"[KworkManager] ⛔ KWORK_SESSION_COOKIE истёк {expires_at_str}! "
                         "Обновите куки в Secrets."
                     )
+                    _bot_state.set_kwork_cookie_valid(
+                        False,
+                        error=f"Куки истёк {expires_at_str} — обновите KWORK_SESSION_COOKIE в Secrets",
+                        expires_at=expires_at_str,
+                        days_remaining=days_remaining,
+                    )
+                    return False
                 elif days_remaining < 7:
                     logger.warning(
                         f"[KworkManager] ⚠️ KWORK_SESSION_COOKIE истекает через "
                         f"{days_remaining} дн. ({expires_at_str}). Обновите заблаговременно!"
+                    )
+                    _bot_state.set_kwork_cookie_valid(
+                        True,
+                        expires_at=expires_at_str,
+                        days_remaining=days_remaining,
                     )
                 else:
                     logger.info(
                         f"[KworkManager] ✓ Авторизован через session cookie "
                         f"(истекает {expires_at_str}, через {days_remaining} дн.)"
                     )
+                    _bot_state.set_kwork_cookie_valid(
+                        True,
+                        expires_at=expires_at_str,
+                        days_remaining=days_remaining,
+                    )
             else:
                 logger.info("[KworkManager] ✓ Авторизован через session cookie")
-            _bot_state.set_kwork_cookie_valid(
-                True,
-                expires_at=expires_at_str,
-                days_remaining=days_remaining,
-            )
+                _bot_state.set_kwork_cookie_valid(True)
             return True
 
         logger.info("[KworkManager] Аутентификация на Kwork...")
