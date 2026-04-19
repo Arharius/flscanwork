@@ -5936,10 +5936,15 @@ class KworkManager:
             async with httpx.AsyncClient(
                 timeout=20.0, follow_redirects=True, cookies=self._cookies
             ) as client:
-                # Шаг 1: получаем CSRF с главной страницы
-                home = await client.get(f"{self.WEB_BASE}/", headers=self._web_headers())
-                csrf_m = _re.search(r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"', home.text)
-                csrf = csrf_m.group(1) if csrf_m else ""
+                # Шаг 1: CSRF получаем со страницы /inbox (не с главной — она перезаписывает куки)
+                csrf = ""
+                try:
+                    csrf_page = await client.get(f"{self.WEB_BASE}/inbox", headers=self._web_headers())
+                    csrf_m = _re.search(r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"', csrf_page.text)
+                    if csrf_m:
+                        csrf = csrf_m.group(1)
+                except Exception:
+                    pass
                 logger.info(f"[KworkManager] Delivery {order_id}: CSRF={'found' if csrf else 'NOT FOUND'}")
 
                 # Шаг 2: ищем thread_id через inbox JSON API с пагинацией + HTML fallback
