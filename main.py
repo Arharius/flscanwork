@@ -12492,8 +12492,9 @@ class VisualDebugAgent(BaseAgent):
             logger.info(f"[{self.name}] ✓ Screenshot URL → {screenshot_url}")
 
         # 3. Send visual preview to Telegram
-        tg_token = cfg.TELEGRAM_BOT_TOKEN
-        tg_chat  = cfg.TELEGRAM_CHAT_ID
+        # v15.9.9: cfg-модуля нет, читаем из env напрямую
+        tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        tg_chat  = os.getenv("TELEGRAM_CHAT_ID", "")
         if tg_token and tg_chat:
             await self._send_preview(ctx, preview_html, screenshot_url)
 
@@ -12598,8 +12599,8 @@ class VisualDebugAgent(BaseAgent):
 
     async def _send_preview(self, ctx: AgentContext, preview_html: str,
                             screenshot_url: str) -> None:
-        tg_token = cfg.TELEGRAM_BOT_TOKEN
-        tg_chat  = cfg.TELEGRAM_CHAT_ID
+        tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        tg_chat  = os.getenv("TELEGRAM_CHAT_ID", "")
         if not tg_token or not tg_chat:
             return
 
@@ -12688,9 +12689,9 @@ class LiveDeploymentAgent(BaseAgent):
         ptype = ctx.project_type
         logger.info(f"[{self.name}] Starting live deployment for [{ptype}]...")
 
-        vercel_token   = cfg.VERCEL_TOKEN
-        netlify_token  = cfg.NETLIFY_TOKEN
-        render_api_key = cfg.RENDER_API_KEY
+        vercel_token   = os.getenv("VERCEL_TOKEN", "")
+        netlify_token  = os.getenv("NETLIFY_TOKEN", "")
+        render_api_key = os.getenv("RENDER_API_KEY", "")
 
         deployed = False
 
