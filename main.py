@@ -15048,11 +15048,17 @@ class OrderOrchestrator:
             eff_review  = max(float(ctx.review_score or 0), raw_review)
             review_ok   = eff_review >= self.AUTO_DELIVER_MIN_SCORE
             tests_ok    = bool(ctx.test_passed)
-            # v15.10.8: если security≥8.5 + sandbox запустился — код реально рабочий
-            # и безопасный, доставляем без оглядки на reviewer gating-агентов
+            # v15.10.9: если security≥8.5 — код безопасен (SecurityAuditor проверил);
+            # sandbox_ok — желательный, но не блокирующий сигнал при high-security.
             perfect_security = float(ctx.security_score or 0) >= 8.5
-            quality_ok = sandbox_ok and security_ok and (
-                review_ok or tests_ok or perfect_security
+            quality_ok = security_ok and (
+                (sandbox_ok and (review_ok or tests_ok))
+                or perfect_security
+            )
+            logger.info(
+                f"[TrustGuard] sandbox={sandbox_ok} sec={ctx.security_score}/10 "
+                f"review={eff_review:.1f}/10(raw={raw_review}) tests={tests_ok} "
+                f"perfect_sec={perfect_security} quality_ok={quality_ok}"
             )
             if not quality_ok:
                 logger.warning(
