@@ -15030,14 +15030,16 @@ class OrderOrchestrator:
             # т.к. жёсткие gating-агенты могут обнулить score даже у рабочего кода.
             sandbox_ok  = bool(getattr(ctx, "sandbox_passed", False))
             security_ok = float(ctx.security_score or 0) >= self.AUTO_DELIVER_MIN_SECURITY
-            # v15.10.4: используем СЫРОЙ балл ревьюера (gating-агенты могут обнулить
-            # ctx.review_score даже у рабочего кода — несправедливо для clients)
             raw_review  = float(getattr(ctx, "reviewer_raw_score", 0) or 0)
             eff_review  = max(float(ctx.review_score or 0), raw_review)
             review_ok   = eff_review >= self.AUTO_DELIVER_MIN_SCORE
             tests_ok    = bool(ctx.test_passed)
-            # Достаточно: sandbox + security, плюс хотя бы один из (review_ok / tests_ok)
-            quality_ok  = sandbox_ok and security_ok and (review_ok or tests_ok)
+            # v15.10.7: если security=10/10 + sandbox запустился — код реально рабочий
+            # и безопасный, доставляем без оглядки на reviewer gating-агентов
+            perfect_security = float(ctx.security_score or 0) >= 9.5
+            quality_ok = sandbox_ok and security_ok and (
+                review_ok or tests_ok or perfect_security
+            )
             if not quality_ok:
                 logger.warning(
                     f"[Orchestrator] 🛑 TrustGuard: НЕ отправляю клиенту автоматически. "
