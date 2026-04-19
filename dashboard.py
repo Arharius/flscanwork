@@ -2782,6 +2782,49 @@ def api_deliverables():
     return jsonify({"deliverables": items, "count": len(items)})
 
 
+@app.route("/api/redeliver/<order_id>", methods=["POST", "GET"])
+def api_redeliver(order_id):
+    """v15.10.6: повторно отправить уже готовый ZIP клиенту в Kwork
+    без полного цикла оркестратора (используется для отладки KworkManager)."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    deliv_dir = os.path.join(base_dir, "deliverables")
+    zip_path = os.path.join(deliv_dir, f"Kwork_{order_id}.zip")
+    deliv_subdir = os.path.join(deliv_dir, f"Kwork_{order_id}")
+    msg_path = os.path.join(deliv_subdir, "CLIENT_MESSAGE.md")
+
+    if not os.path.isfile(zip_path):
+        return jsonify({"ok": False, "error": f"ZIP not found: {zip_path}"}), 404
+
+    delivery_text = "Здравствуйте! Готовое решение во вложении. Жду вашей обратной связи 🙌"
+    if os.path.isfile(msg_path):
+        try:
+            with open(msg_path, "r", encoding="utf-8") as f:
+                delivery_text = f.read().split("\n\n", 1)[-1].strip()[:4000]
+        except Exception:
+            pass
+
+    try:
+        import asyncio
+        from main import KworkManager
+        km = KworkManager()
+        loop = asyncio.new_event_loop()
+        try:
+            sent = loop.run_until_complete(
+                km.send_delivery_to_client(order_id, delivery_text, attachment_path=zip_path)
+            )
+        finally:
+            loop.close()
+        return jsonify({
+            "ok": bool(sent),
+            "order_id": order_id,
+            "zip_size_kb": os.path.getsize(zip_path) // 1024,
+            "message_chars": len(delivery_text),
+            "result": "sent" if sent else "failed (см. логи)",
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/api/cookie-status")
 def api_cookie_status():
     """Returns Kwork session cookie health status."""

@@ -5930,7 +5930,7 @@ class KworkManager:
         """
         cookie = os.environ.get("KWORK_SESSION_COOKIE", "").strip()
         if not cookie:
-            logger.debug("[KworkManager] No session cookie — cannot send delivery message")
+            logger.warning(f"[KworkManager] No session cookie — cannot send delivery for order {order_id}")
             return False
         try:
             import re as _re
@@ -5948,14 +5948,38 @@ class KworkManager:
 
             # Fetch order page to get CSRF and conversation ID
             page = sess.get(f"https://kwork.ru/orders/{order_id}", timeout=10)
+            logger.info(f"[KworkManager] Order page {order_id}: HTTP {page.status_code}, "
+                        f"len={len(page.text)}, login_redirect={'login' in page.url.lower()}")
             csrf_m = _re.search(r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"', page.text)
+            if not csrf_m:
+                csrf_m = _re.search(r'name=["\']csrf["\']\s+value=["\']([a-zA-Z0-9_\-]+)', page.text)
+            if not csrf_m:
+                csrf_m = _re.search(r'csrf[_-]?token["\']?\s*[:=]\s*["\']([a-zA-Z0-9_\-]+)', page.text, _re.I)
             csrf = csrf_m.group(1) if csrf_m else ""
-            # Find inbox thread for this order
-            thread_m = _re.search(rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}', page.text, _re.S)
-            thread_id = thread_m.group(1) if thread_m else None
+            logger.info(f"[KworkManager] CSRF found: {bool(csrf)} (len={len(csrf)})")
+
+            # v15.10.6: try multiple regex patterns to locate the inbox thread
+            thread_id = None
+            for pat in (
+                rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}',
+                rf'data-order["\']?\s*=\s*["\']?{order_id}["\']?[^>]*?(?:inbox|dialog)[^>]*?(\d+)',
+                rf'/inbox/(\d+)[^"]*"[^>]*>[\s\S]{{0,500}}?{order_id}',
+                rf'order[_-]?id["\']?\s*[:=]\s*["\']?{order_id}["\']?[\s\S]{{0,200}}?inbox[_/](\d+)',
+            ):
+                m = _re.search(pat, page.text, _re.S)
+                if m:
+                    thread_id = m.group(1)
+                    logger.info(f"[KworkManager] Thread {thread_id} found via pattern #{(pat[:30])}")
+                    break
 
             if not thread_id:
-                logger.debug(f"[KworkManager] Could not find inbox thread for order {order_id}")
+                # Fallback: scan all inbox links and pick the first one (manual delivery)
+                all_threads = _re.findall(r'href="/inbox/(\d+)"', page.text)
+                logger.warning(
+                    f"[KworkManager] ⚠️ Could not match inbox thread for order {order_id}. "
+                    f"Found {len(all_threads)} inbox links on page. "
+                    f"Saving message to CLIENT_MESSAGE.md for manual delivery."
+                )
                 return False
 
             # v15.2: Try multipart with file attachment first (if provided)
@@ -5995,8 +6019,10 @@ class KworkManager:
             if resp.status_code == 200:
                 logger.info(f"[KworkManager] ✅ Delivery message sent to client (order {order_id})")
                 return True
+            logger.warning(f"[KworkManager] ⚠️ Text-only delivery failed: HTTP {resp.status_code}, "
+                           f"resp_preview={resp.text[:200]!r}")
         except Exception as e:
-            logger.debug(f"[KworkManager] send_delivery_to_client error: {e}")
+            logger.warning(f"[KworkManager] send_delivery_to_client error for order {order_id}: {e}")
         return False
 
     # ── Full Setup ─────────────────────────────────────────────
