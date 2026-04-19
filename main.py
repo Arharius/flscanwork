@@ -4296,6 +4296,41 @@ class KworkPlatform(BasePlatform):
         "rest api",
         "интеграция api",
         "парсинг данных",
+        "лендинг",
+        "сайт визитка",
+        "сайт под ключ",
+        "интернет магазин",
+        "корпоративный сайт",
+        "доработка сайта",
+        "telegram бот для бизнеса",
+        "чат бот gpt",
+        "интеграция crm",
+        "выгрузка данных",
+        "работа с excel",
+        "google sheets автоматизация",
+        "обработка таблиц",
+        "генерация документов",
+        "api битрикс",
+        "amocrm интеграция",
+        "wildberries api",
+        "ozon api",
+        "бот для авито",
+        "бот для маркетплейса",
+        "автопостинг",
+        "сбор данных с сайта",
+        "мониторинг цен",
+        "уведомления telegram",
+        "анализ данных",
+        "обработка изображений",
+        "django сайт",
+        "flask приложение",
+        "selenium автоматизация",
+        "веб приложение python",
+        "личный кабинет",
+        "форма обратной связи",
+        "оптимизация сайта",
+        "yandex api",
+        "1с интеграция",
     ]
     _kwork_query_idx: int = 0
 
@@ -4322,7 +4357,7 @@ class KworkPlatform(BasePlatform):
             # Run 3 queries per cycle for broader coverage
             all_jobs: List[Dict] = []
             seen_ids: set = set()
-            queries_per_cycle = 3
+            queries_per_cycle = 5
             for i in range(queries_per_cycle):
                 query = self._KWORK_QUERIES[
                     (self._kwork_query_idx + i) % len(self._KWORK_QUERIES)
@@ -6182,6 +6217,28 @@ class FLruPlatform(BasePlatform):
         "скрипт автоматизация",
         "интеграция api python",
         "web scraping python",
+        "лендинг",
+        "сайт под ключ",
+        "интернет магазин разработка",
+        "доработка сайта",
+        "telegram бот для бизнеса",
+        "чат бот gpt openai",
+        "интеграция crm битрикс",
+        "amocrm api",
+        "выгрузка с сайта",
+        "автоматизация excel",
+        "google sheets скрипт",
+        "генерация документов python",
+        "wildberries парсер",
+        "ozon api интеграция",
+        "мониторинг цен конкурентов",
+        "уведомления в telegram",
+        "selenium бот",
+        "django сайт под ключ",
+        "flask web приложение",
+        "personal account разработка",
+        "оптимизация сайта",
+        "интеграция с 1с",
     ]
     _fl_query_idx: int = 0
 
@@ -6195,7 +6252,7 @@ class FLruPlatform(BasePlatform):
             # Run 3 queries per cycle for broader coverage
             all_jobs: List[Dict] = []
             seen_ids: set = set()
-            queries_per_cycle = 3
+            queries_per_cycle = 5
             for i in range(queries_per_cycle):
                 query = self._FL_SEARCH_QUERIES[
                     (self._fl_query_idx + i) % len(self._FL_SEARCH_QUERIES)
