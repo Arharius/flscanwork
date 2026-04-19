@@ -1858,22 +1858,20 @@ class SmartLLMRouter:
 
     # Model tiers on OpenRouter
     # Configurable via env vars; sensible defaults provided
+    # v15.9.6: устаревшие slug Anthropic/OpenAI давали 404 на OpenRouter — переключаем
+    # дефолты на проверенные DeepSeek модели; пользователь может переопределить через env.
     OPENROUTER_MODELS = {
-        # For architecture analysis: Claude Sonnet — best at understanding code structure
-        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",    "anthropic/claude-3.5-sonnet"),
-        # For security analysis: GPT-4o — strong security reasoning
-        "security":     os.getenv("OPENROUTER_SEC_MODEL",     "openai/gpt-4o"),
-        # For review/scoring: fast cheap model
+        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",    "deepseek/deepseek-chat-v3-0324"),
+        "security":     os.getenv("OPENROUTER_SEC_MODEL",     "deepseek/deepseek-chat-v3-0324"),
         "review":       os.getenv("OPENROUTER_REVIEW_MODEL",  "deepseek/deepseek-chat-v3-0324"),
-        # Medium tasks via DeepSeek
         "medium":       os.getenv("OPENROUTER_MEDIUM_MODEL",  "deepseek/deepseek-chat-v3-0324"),
     }
 
-    # Round-robin pool for complex proposals: deepseek-r1 → claude-sonnet → gpt-4o
+    # Round-robin pool for complex proposals — все модели DeepSeek (надёжны на OpenRouter)
     COMPLEX_ROTATION: list = [
         os.getenv("OPENROUTER_COMPLEX_MODEL_0", "deepseek/deepseek-r1"),
-        os.getenv("OPENROUTER_COMPLEX_MODEL_1", "anthropic/claude-3.5-sonnet"),
-        os.getenv("OPENROUTER_COMPLEX_MODEL_2", "openai/gpt-4o"),
+        os.getenv("OPENROUTER_COMPLEX_MODEL_1", "deepseek/deepseek-chat-v3-0324"),
+        os.getenv("OPENROUTER_COMPLEX_MODEL_2", "deepseek/deepseek-r1"),
     ]
 
     @classmethod
