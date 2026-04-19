@@ -5747,12 +5747,42 @@ class KworkManager:
                             logger.debug(f"[KworkManager] HTML fallback failed: {_he}")
 
                 # Build order dicts from web-scraped data
+                # v15.9.3: log structure of first order for diagnosis + extract id from MANY shapes
+                if raw_orders:
+                    try:
+                        _sample = raw_orders[0] if isinstance(raw_orders[0], dict) else {}
+                        logger.info(
+                            f"[KworkManager] DEBUG order keys: {list(_sample.keys())[:20]} "
+                            f"| sample: {_json.dumps(_sample, ensure_ascii=False)[:400]}"
+                        )
+                    except Exception:
+                        pass
                 for o in raw_orders:
                     if isinstance(o, dict):
+                        # Try every plausible id shape, including extracting from URL/href
+                        _id = (
+                            o.get("id") or o.get("order_id") or o.get("orderId")
+                            or o.get("orderID") or o.get("ID") or o.get("project_id")
+                            or o.get("projectId") or o.get("paid_id") or o.get("hash")
+                            or ""
+                        )
+                        if not _id:
+                            url_str = str(o.get("url") or o.get("href") or o.get("link") or "")
+                            _m = _re.search(r'/orders?/(\d+)', url_str)
+                            if _m:
+                                _id = _m.group(1)
+                        # Last resort: stable hash from title+buyer to avoid collisions
+                        if not _id:
+                            import hashlib as _hl
+                            _seed = (str(o.get("title") or o.get("name") or "")
+                                     + str(o.get("buyer_id") or o.get("user_id") or "")
+                                     + str(o.get("price") or o.get("amount") or ""))
+                            if _seed.strip():
+                                _id = "h" + _hl.sha1(_seed.encode("utf-8")).hexdigest()[:10]
                         orders.append({
-                            "id": o.get("id") or o.get("order_id") or o.get("orderId", ""),
+                            "id": str(_id),
                             "title": o.get("title") or o.get("name") or o.get("project_name") or "Заказ Kwork",
-                            "price": o.get("price") or o.get("amount") or o.get("total_price") or 0,
+                            "price": o.get("price") or o.get("amount") or o.get("total_price") or o.get("budget") or 0,
                             "buyer_id": o.get("buyer_id") or o.get("user_id") or o.get("buyerId", ""),
                         })
                 if not orders:

@@ -1946,6 +1946,74 @@ def api_search_now():
         return jsonify({"ok": False, "message": str(e)})
 
 
+@app.route("/api/enqueue-order", methods=["POST", "GET"])
+def api_enqueue_order():
+    """v15.9.3: Ручной запуск работы по принятому заказу.
+    Принимает либо ?url=https://kwork.ru/orders/12345  либо ?id=12345
+    Создаёт job + proposal(won) + кладёт в job_execution_queue.
+    """
+    import re as _re
+    raw = (request.args.get("url") or request.args.get("id")
+           or request.form.get("url") or request.form.get("id") or "").strip()
+    if not raw:
+        return jsonify({"ok": False, "error": "send ?url=... or ?id=..."}), 400
+    m = _re.search(r'/orders?/(\d+)', raw)
+    order_id = m.group(1) if m else _re.sub(r'\D', '', raw)
+    if not order_id:
+        return jsonify({"ok": False, "error": "не удалось извлечь id"}), 400
+
+    title = (request.args.get("title") or request.form.get("title") or f"Kwork order {order_id}").strip()
+    try:
+        budget = float(request.args.get("budget") or request.form.get("budget") or 0)
+    except Exception:
+        budget = 0.0
+
+    ext_id = f"Kwork_{order_id}"
+    conn = get_db()
+    try:
+        # job
+        row = conn.execute("SELECT id FROM jobs WHERE external_id=?", (ext_id,)).fetchone()
+        if row:
+            job_id = row["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO jobs (platform, external_id, title, description, budget, currency, url, category) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                ("Kwork", ext_id, title, title, budget, "RUB",
+                 f"https://kwork.ru/orders/{order_id}", "automation")
+            )
+            job_id = cur.lastrowid
+        # proposal
+        prow = conn.execute("SELECT id FROM proposals WHERE job_id=? LIMIT 1", (job_id,)).fetchone()
+        if prow:
+            proposal_id = prow["id"]
+        else:
+            cur = conn.execute(
+                "INSERT INTO proposals (job_id, generated_text, status, prompt_version) VALUES (?,?,?,?)",
+                (job_id, "[Manually enqueued]", "won", "manual")
+            )
+            proposal_id = cur.lastrowid
+        conn.execute("UPDATE proposals SET status='won' WHERE id=?", (proposal_id,))
+        conn.execute(
+            "INSERT INTO proposal_outcomes (proposal_id, outcome, notes) VALUES (?,?,?)",
+            (proposal_id, "won", f"Manual enqueue via dashboard for order {order_id}")
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO job_execution_queue (external_id, notes) VALUES (?,?)",
+            (ext_id, f"Manual enqueue from dashboard for Kwork order {order_id}")
+        )
+        conn.commit()
+        return jsonify({
+            "ok": True, "message": f"✅ Заказ {order_id} в очереди — будет запущен в течение 5 минут",
+            "ext_id": ext_id, "job_id": job_id, "proposal_id": proposal_id,
+            "url": f"https://kwork.ru/orders/{order_id}"
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
+
 @app.route("/api/db-stats")
 def api_db_stats():
     conn = get_db()
