@@ -5747,16 +5747,33 @@ class KworkManager:
                             logger.debug(f"[KworkManager] HTML fallback failed: {_he}")
 
                 # Build order dicts from web-scraped data
-                # v15.9.3: log structure of first order for diagnosis + extract id from MANY shapes
+                # v15.9.5: фильтруем "категории/виджеты" (children/isFire/isTagNew) — это НЕ заказы
+                _CATEGORY_MARKERS = {"isFire", "isTagNew", "isTagBeta", "children",
+                                     "subcategories", "subgroups", "icon", "color"}
+                _ORDER_REQUIRED = ("price","amount","total_price","budget",
+                                   "buyer_id","user_id","status","want_id")
+                _filtered = []
+                for o in raw_orders:
+                    if not isinstance(o, dict):
+                        continue
+                    keys = set(o.keys())
+                    # категория/виджет — пропускаем
+                    if keys & _CATEGORY_MARKERS:
+                        continue
+                    # реальный заказ должен иметь хоть одно из ценовых/buyer полей
+                    if not any(o.get(k) is not None for k in _ORDER_REQUIRED):
+                        continue
+                    _filtered.append(o)
                 if raw_orders:
                     try:
                         _sample = raw_orders[0] if isinstance(raw_orders[0], dict) else {}
                         logger.info(
-                            f"[KworkManager] DEBUG order keys: {list(_sample.keys())[:20]} "
-                            f"| sample: {_json.dumps(_sample, ensure_ascii=False)[:400]}"
+                            f"[KworkManager] DEBUG raw[0] keys: {list(_sample.keys())[:20]} "
+                            f"| filtered: {len(_filtered)}/{len(raw_orders)}"
                         )
                     except Exception:
                         pass
+                raw_orders = _filtered
                 for o in raw_orders:
                     if isinstance(o, dict):
                         # Try every plausible id shape, including extracting from URL/href
@@ -7358,6 +7375,7 @@ async def process_platform(platform: BasePlatform):
 class AgentContext:
     job: Dict[str, Any]
     spec: Dict[str, Any] = field(default_factory=dict)
+    llm: Any = None                        # v15.9.4: shared LLM client (set by Orchestrator)
     project_type: str = "viber_bot"       # set by AnalystAgent
     main_file: str = "bot.py"             # main deliverable filename
     architecture: str = ""
@@ -14684,7 +14702,7 @@ class OrderOrchestrator:
         job_row = db.get_job_by_external_id(ext_id)
         exec_id = db.start_execution(job_row["id"]) if job_row else None
 
-        ctx = AgentContext(job=job)
+        ctx = AgentContext(job=job, llm=_get_shared_llm())  # v15.9.4: wire LLM for agents
         _exec_start = asyncio.get_event_loop().time()
         try:
             # ── Phase 1: Analysis & Deep Requirements ─────────────
