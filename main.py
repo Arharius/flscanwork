@@ -10297,9 +10297,10 @@ if __name__ == "__main__": unittest.main()
         if not passed:
             ctx.errors.append(output[:400])
 
-        # Final pass: runtime failure counts as test failure
-        if not exec_result["ok"] and exec_result["traceback"] and \
-                not exec_result["traceback"].startswith("[timeout"):
+        # v15.9.8: runtime failure counts as test failure (читаем результат из ctx,
+        # т.к. exec_result жил только в _execution_refinement и здесь был NameError)
+        tb = (ctx.runtime_traceback or "").strip()
+        if tb and not tb.startswith("[timeout"):
             ctx.test_passed = False
         return ctx
 
