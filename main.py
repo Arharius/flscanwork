@@ -7394,6 +7394,7 @@ class AgentContext:
     review_notes: List[str] = field(default_factory=list)
     review_approved: bool = False
     review_score: int = 0
+    reviewer_raw_score: int = 0
     deliverable_path: str = ""
     deliverable_zip: str = ""
     deliverable_url: str = ""
@@ -11075,11 +11076,13 @@ class ReviewerAgent(BaseAgent):
             if m:
                 rv = json.loads(m.group())
                 ctx.review_score    = int(rv.get("score", 0))
+                ctx.reviewer_raw_score = ctx.review_score  # v15.10.4: до gating-обнулений
                 ctx.review_approved = (ctx.review_score >= 8 and ctx.test_passed)
                 ctx.review_notes    = rv.get("issues", [])
         except Exception:
             ctx.review_approved = ctx.test_passed
             ctx.review_score    = 5 if ctx.test_passed else 3
+            ctx.reviewer_raw_score = ctx.review_score
         logger.info(f"[{self.name}] [{ptype}] score={ctx.review_score}/10 "
                     f"approved={ctx.review_approved} "
                     f"issues={len(ctx.review_notes)}")
@@ -14995,7 +14998,11 @@ class OrderOrchestrator:
             # т.к. жёсткие gating-агенты могут обнулить score даже у рабочего кода.
             sandbox_ok  = bool(getattr(ctx, "sandbox_passed", False))
             security_ok = float(ctx.security_score or 0) >= self.AUTO_DELIVER_MIN_SECURITY
-            review_ok   = float(ctx.review_score or 0) >= self.AUTO_DELIVER_MIN_SCORE
+            # v15.10.4: используем СЫРОЙ балл ревьюера (gating-агенты могут обнулить
+            # ctx.review_score даже у рабочего кода — несправедливо для clients)
+            raw_review  = float(getattr(ctx, "reviewer_raw_score", 0) or 0)
+            eff_review  = max(float(ctx.review_score or 0), raw_review)
+            review_ok   = eff_review >= self.AUTO_DELIVER_MIN_SCORE
             tests_ok    = bool(ctx.test_passed)
             # Достаточно: sandbox + security, плюс хотя бы один из (review_ok / tests_ok)
             quality_ok  = sandbox_ok and security_ok and (review_ok or tests_ok)
