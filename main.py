@@ -13305,10 +13305,16 @@ class SandboxRunnerAgent:
                 "ImportError", "NameError", "AttributeError"
             ))
 
-            if fatal:
+            # v15.10.5: non-zero exit без timeout = реальный сбой при старте.
+            # Игнорируем код 0/None (TIMEOUT_OK), а ненулевой считаем фатальным,
+            # даже если в выводе нет специфических SyntaxError/ImportError маркеров.
+            crashed = (not timed_out) and exit_code not in (0, None)
+
+            if fatal or crashed:
                 ctx.sandbox_passed = False
-                ctx.sandbox_output = f"RUNTIME: {combined}"
-                logger.warning(f"[{self.name}] Fatal runtime error")
+                reason = "Fatal pattern" if fatal else f"non-zero exit={exit_code}"
+                ctx.sandbox_output = f"RUNTIME({reason}): {combined}"
+                logger.warning(f"[{self.name}] {reason}")
                 return ctx
 
             ctx.sandbox_passed = True
