@@ -6017,15 +6017,52 @@ class KworkManager:
                     f"CSRF={'found (' + csrf[:8] + '…)' if csrf else 'NOT FOUND'}"
                 )
 
-                # ── Шаг 3: POST /sendmessage ───────────────────────────────────
-                send_url = f"{self.WEB_BASE}/sendmessage"
                 send_hdrs = self._web_headers()
                 send_hdrs["X-Requested-With"] = "XMLHttpRequest"
                 send_hdrs["Referer"] = f"{self.WEB_BASE}/inbox/{client_user_id}"
                 send_hdrs["Accept"] = "application/json, */*"
                 send_hdrs["Origin"] = self.WEB_BASE
 
-                form_data = {
+                # ── Шаг 3 (опционально): загружаем ZIP-файл ───────────────────
+                file_id: Optional[str] = None
+                if attachment_path and os.path.isfile(attachment_path):
+                    try:
+                        fname = os.path.basename(attachment_path)
+                        fsize = os.path.getsize(attachment_path) // 1024
+                        with open(attachment_path, "rb") as fh:
+                            up_resp = await client.post(
+                                f"{self.WEB_BASE}/api/file/upload",
+                                headers=send_hdrs,
+                                files={"upload_files": (fname, fh, "application/zip")},
+                                data={
+                                    "csrftoken": csrf,
+                                    "second_user_id": client_user_id,
+                                    "need_hash": "1",
+                                },
+                                timeout=60,
+                            )
+                        uj = up_resp.json()
+                        if uj.get("result") == "success":
+                            # file_id находится прямо в корне ответа
+                            raw_fid = uj.get("file_id") or uj.get("id")
+                            if not raw_fid and isinstance(uj.get("response"), dict):
+                                raw_fid = uj["response"].get("id") or uj["response"].get("FID")
+                            if raw_fid:
+                                file_id = str(raw_fid)
+                                logger.info(
+                                    f"[KworkManager] ✓ ZIP uploaded: {fname} ({fsize} KB) "
+                                    f"→ file_id={file_id}"
+                                )
+                        else:
+                            logger.warning(
+                                f"[KworkManager] ZIP upload failed: {uj.get('reason','?')} "
+                                f"— falling back to text-only"
+                            )
+                    except Exception as _ue:
+                        logger.warning(f"[KworkManager] ZIP upload error: {_ue} — text-only fallback")
+
+                # ── Шаг 4: POST /sendmessage ───────────────────────────────────
+                form_data: dict = {
                     "csrftoken": csrf,
                     "submg": "1",
                     "msgto": client_user_id,
@@ -6033,21 +6070,28 @@ class KworkManager:
                     "message_body": delivery_text,
                     "message_message_format": "",
                 }
+                if file_id:
+                    form_data["conversations-files[new][]"] = file_id
 
                 resp = await client.post(
-                    send_url, data=form_data, headers=send_hdrs, timeout=20
+                    f"{self.WEB_BASE}/sendmessage",
+                    data=form_data,
+                    headers=send_hdrs,
+                    timeout=20,
                 )
                 logger.info(
-                    f"[KworkManager] POST /sendmessage: "
-                    f"HTTP {resp.status_code} resp={resp.text[:300]!r}"
+                    f"[KworkManager] POST /sendmessage"
+                    f"{'+ file' if file_id else ''}: "
+                    f"HTTP {resp.status_code} resp={resp.text[:200]!r}"
                 )
 
                 try:
                     j = resp.json()
                     if j.get("status") == "success" or j.get("success"):
                         logger.info(
-                            f"[KworkManager] ✅ Delivery message sent to client "
+                            f"[KworkManager] ✅ Delivery sent to client "
                             f"user_id={client_user_id} (order {order_id})"
+                            f"{' + ZIP' if file_id else ''}"
                         )
                         return True
                     err = j.get("response") or j.get("message") or j.get("error") or str(j)
@@ -6056,7 +6100,9 @@ class KworkManager:
                     if resp.status_code == 200 and "success" in resp.text.lower():
                         logger.info(f"[KworkManager] ✅ Delivery sent (non-JSON success)")
                         return True
-                    logger.warning(f"[KworkManager] ⚠️ /sendmessage non-JSON resp: {resp.text[:200]!r}")
+                    logger.warning(
+                        f"[KworkManager] ⚠️ /sendmessage non-JSON: {resp.text[:200]!r}"
+                    )
 
         except Exception as e:
             logger.warning(f"[KworkManager] send_delivery_to_client error (order {order_id}): {e}")
