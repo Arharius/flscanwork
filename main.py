@@ -5942,14 +5942,32 @@ class KworkManager:
                 csrf = csrf_m.group(1) if csrf_m else ""
                 logger.info(f"[KworkManager] Delivery {order_id}: CSRF={'found' if csrf else 'NOT FOUND'}")
 
-                # Шаг 2: ищем thread_id через inbox JSON API
+                # Шаг 2: ищем thread_id через inbox JSON API с пагинацией + HTML fallback
                 thread_id = None
-                dialog_endpoints = [
-                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",    {"filter": "all"}),
+
+                def _extract_thread(dialogs: list) -> Optional[str]:
+                    for dlg in dialogs:
+                        if not isinstance(dlg, dict):
+                            continue
+                        dlg_str = _json.dumps(dlg, ensure_ascii=False)
+                        if order_id in dlg_str:
+                            for key in ("id", "dialog_id", "dialogId", "thread_id",
+                                        "chatId", "chat_id", "conversationId"):
+                                if key in dlg:
+                                    return str(dlg[key])
+                    return None
+
+                # A) JSON endpoints (с пагинацией page 0/1)
+                json_endpoints = [
+                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",       {"filter": "all"}),
+                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",       {"filter": "all", "page": 1}),
+                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",       {"filter": "all", "offset": 20}),
                     ("POST", f"{self.WEB_BASE}/inbox_list/load_dialogs", {"filter": "all"}),
-                    ("GET",  f"{self.WEB_BASE}/inbox?format=json",    None),
+                    ("GET",  f"{self.WEB_BASE}/inbox?format=json",       None),
                 ]
-                for method, url, payload in dialog_endpoints:
+                for method, url, payload in json_endpoints:
+                    if thread_id:
+                        break
                     try:
                         hdrs = self._web_headers()
                         hdrs["X-Requested-With"] = "XMLHttpRequest"
@@ -5958,11 +5976,12 @@ class KworkManager:
                                 if method == "POST"
                                 else await client.get(url, headers=hdrs))
                         if resp.status_code != 200:
-                            logger.info(f"[KworkManager] {url} → {resp.status_code}")
+                            logger.info(f"[KworkManager] {url}({payload}) → HTTP {resp.status_code}")
                             continue
                         try:
                             jd = resp.json()
                         except Exception:
+                            logger.info(f"[KworkManager] {url} → not JSON (len={len(resp.text)})")
                             continue
                         payload_obj = jd.get("response", jd) if isinstance(jd, dict) else jd
                         dialogs: list = []
@@ -5974,23 +5993,52 @@ class KworkManager:
                                 if isinstance(v, list) and v:
                                     dialogs = v
                                     break
-                        logger.info(f"[KworkManager] {url} → {len(dialogs)} dialog(s)")
-                        for dlg in dialogs:
-                            if not isinstance(dlg, dict):
-                                continue
-                            dlg_str = _json.dumps(dlg, ensure_ascii=False)
-                            if order_id in dlg_str:
-                                for key in ("id", "dialog_id", "dialogId", "thread_id"):
-                                    if key in dlg:
-                                        thread_id = str(dlg[key])
-                                        break
-                            if thread_id:
-                                logger.info(f"[KworkManager] Thread {thread_id} found for order {order_id}")
-                                break
+                        logger.info(f"[KworkManager] {url}({payload}) → {len(dialogs)} dialogs")
+                        # debug: first dialog structure
+                        if dialogs:
+                            logger.debug(f"[KworkManager] first dialog keys: {list(dialogs[0].keys()) if isinstance(dialogs[0], dict) else dialogs[0]}")
+                            logger.info(f"[KworkManager] first dialog sample: {_json.dumps(dialogs[0], ensure_ascii=False)[:400]}")
+                        thread_id = _extract_thread(dialogs)
                         if thread_id:
-                            break
+                            logger.info(f"[KworkManager] Thread {thread_id} found for order {order_id}")
                     except Exception as _e:
                         logger.debug(f"[KworkManager] dialog endpoint {url}: {_e}")
+
+                # B) HTML fallback: парсим /inbox страницу
+                if not thread_id:
+                    try:
+                        r = await client.get(f"{self.WEB_BASE}/inbox", headers=self._web_headers())
+                        logger.info(f"[KworkManager] /inbox HTML: HTTP {r.status_code} len={len(r.text)}")
+                        # Поиск JSON блоков с order_id
+                        for pat in (
+                            rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}',
+                            rf'/inbox/(\d+)[^"]*"[^>]*>[\s\S]{{0,600}}?{order_id}',
+                            rf'"id"\s*:\s*(\d+)[^}}]{{0,300}}{order_id}',
+                        ):
+                            m = _re.search(pat, r.text, _re.S)
+                            if m:
+                                thread_id = m.group(1)
+                                logger.info(f"[KworkManager] Thread {thread_id} found in /inbox HTML via regex")
+                                break
+                        if not thread_id:
+                            # Try JSON embedded in page
+                            jm = _re.search(r'(?:window\.\w+|__INITIAL_STATE__|stateData)\s*=\s*(\{.+?\})\s*;', r.text, _re.S)
+                            if jm:
+                                try:
+                                    page_json = _json.loads(jm.group(1))
+                                    page_str = _json.dumps(page_json)
+                                    if order_id in page_str:
+                                        im = _re.search(rf'"id"\s*:\s*(\d+)[^}}]{{0,400}}{order_id}', page_str)
+                                        if im:
+                                            thread_id = im.group(1)
+                                            logger.info(f"[KworkManager] Thread {thread_id} found in /inbox page JSON")
+                                except Exception:
+                                    pass
+                        if not thread_id:
+                            all_threads = _re.findall(r'href="/inbox/(\d+)"', r.text)
+                            logger.info(f"[KworkManager] /inbox HTML: found {len(all_threads)} inbox links: {all_threads[:5]}")
+                    except Exception as _he:
+                        logger.warning(f"[KworkManager] /inbox HTML fallback error: {_he}")
 
                 if not thread_id:
                     logger.warning(
