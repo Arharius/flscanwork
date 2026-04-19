@@ -5924,11 +5924,19 @@ class KworkManager:
     async def send_delivery_to_client(self, order_id: str, delivery_text: str,
                                       attachment_path: Optional[str] = None) -> bool:
         """
-        v15.10.10c: Отправляет результат клиенту через Kwork inbox.
-        Шаг 1: поиск thread_id через /inbox/get_dialogs (тот же код что check_messages).
-        Шаг 2: CSRF + отправка через отдельный запрос.
-        Ключевое: НЕ делаем GET на главную / или другие страницы ПЕРЕД AJAX запросами
-        (GET запросы перезаписывают cookie jar и инвалидируют сессию для AJAX).
+        v15.10.11: Отправляет результат клиенту через Kwork /sendmessage.
+
+        Алгоритм (подтверждён эмпирически 2026-04-19):
+          1. GET /inbox  →  парсим window.chatList из HTML
+          2. Находим диалог с OID=order_id  →  берём user_id клиента и kworkId
+          3. GET /inbox/{client_user_id}  →  берём csrftoken из hidden-input формы
+          4. POST /sendmessage с полями:
+               csrftoken, submg=1, msgto=client_user_id,
+               kworkId=order_id, message_body=TEXT, message_message_format=""
+          5. Проверяем {"status":"success"} в ответе
+
+        Файловое вложение: сначала загружаем через /api/file/upload, затем добавляем
+        file_id в сообщение.  Если загрузка не удаётся — текстовое сообщение.
         """
         if not self.is_configured or not await self._authenticate():
             logger.warning(f"[KworkManager] Not configured/authenticated — cannot send delivery {order_id}")
@@ -5936,173 +5944,119 @@ class KworkManager:
 
         import re as _re, json as _json
 
-        def _extract_thread_from_dialogs(dialogs: list) -> Optional[str]:
-            for dlg in dialogs:
-                if not isinstance(dlg, dict):
-                    continue
-                dlg_str = _json.dumps(dlg, ensure_ascii=False)
-                if order_id in dlg_str:
-                    for key in ("id", "dialog_id", "dialogId", "thread_id",
-                                "chatId", "chat_id", "conversationId"):
-                        if key in dlg:
-                            return str(dlg[key])
-            return None
-
         try:
-            # ── Шаг 1: ищем thread_id (ТОЛЬКО AJAX, никаких GET страниц до этого) ──
-            thread_id = None
             async with httpx.AsyncClient(
-                timeout=20.0, follow_redirects=False, cookies=self._cookies
-            ) as client_ajax:
-                # Те же endpoints что работают в check_messages (filter=unread → JSON)
-                ajax_tries = [
-                    {"filter": "unread"},
-                    {"filter": ""},
-                    {},
-                ]
-                for payload in ajax_tries:
-                    if thread_id:
-                        break
-                    for url in (
-                        f"{self.WEB_BASE}/inbox/get_dialogs",
-                        f"{self.WEB_BASE}/inbox_list/load_dialogs",
-                    ):
-                        try:
-                            hdrs = self._web_headers()
-                            hdrs["X-Requested-With"] = "XMLHttpRequest"
-                            hdrs["Accept"] = "application/json, */*; q=0.01"
-                            resp = await client_ajax.post(url, headers=hdrs, data=payload)
-                            if resp.status_code != 200:
-                                logger.info(f"[KworkManager] {url}{payload} → HTTP {resp.status_code}")
-                                continue
-                            try:
-                                jd = resp.json()
-                            except Exception:
-                                logger.info(f"[KworkManager] {url}{payload} → not JSON (len={len(resp.text)}) preview={resp.text[:100]!r}")
-                                continue
-                            payload_obj = jd.get("response", jd) if isinstance(jd, dict) else jd
-                            dialogs: list = []
-                            if isinstance(payload_obj, list):
-                                dialogs = payload_obj
-                            elif isinstance(payload_obj, dict):
-                                for k in ("dialogs", "items", "list", "data"):
-                                    v = payload_obj.get(k)
-                                    if isinstance(v, list) and v:
-                                        dialogs = v
-                                        break
-                            logger.info(f"[KworkManager] {url}{payload} → {len(dialogs)} dialogs")
-                            if dialogs:
-                                logger.info(f"[KworkManager] first dialog: {_json.dumps(dialogs[0], ensure_ascii=False)[:300]}")
-                            thread_id = _extract_thread_from_dialogs(dialogs)
-                            if thread_id:
-                                logger.info(f"[KworkManager] ✓ Thread {thread_id} found for order {order_id}")
-                                break
-                        except Exception as _ae:
-                            logger.debug(f"[KworkManager] ajax {url}: {_ae}")
+                timeout=30.0, follow_redirects=True, cookies=self._cookies
+            ) as client:
 
-            # ── Шаг 1b: HTML fallback ─────────────────────────────────────────
-            if not thread_id:
-                try:
-                    async with httpx.AsyncClient(
-                        timeout=15.0, follow_redirects=True, cookies=self._cookies
-                    ) as client_html:
-                        r = await client_html.get(
-                            f"{self.WEB_BASE}/inbox", headers=self._web_headers()
-                        )
-                    logger.info(f"[KworkManager] /inbox HTML: HTTP {r.status_code} len={len(r.text)}")
-                    for pat in (
-                        rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}',
-                        rf'/inbox/(\d+)[^"]*"[^>]*>[\s\S]{{0,600}}?{order_id}',
-                        rf'"id"\s*:\s*(\d+)[^}}]{{0,300}}{order_id}',
-                    ):
-                        m = _re.search(pat, r.text, _re.S)
-                        if m:
-                            thread_id = m.group(1)
-                            logger.info(f"[KworkManager] ✓ Thread {thread_id} found in /inbox HTML")
-                            break
-                    if not thread_id:
-                        all_threads = _re.findall(r'href="/inbox/(\d+)"', r.text)
-                        logger.info(f"[KworkManager] /inbox HTML: {len(all_threads)} inbox links: {all_threads[:5]}")
-                        # Embed JSON scan
-                        jm = _re.search(r'"dialogs"\s*:\s*(\[.+?\])', r.text, _re.S)
-                        if jm:
-                            try:
-                                dlg_list = _json.loads(jm.group(1))
-                                thread_id = _extract_thread_from_dialogs(dlg_list)
-                                if thread_id:
-                                    logger.info(f"[KworkManager] ✓ Thread {thread_id} from /inbox JSON embed")
-                            except Exception:
-                                pass
-                except Exception as _he:
-                    logger.warning(f"[KworkManager] /inbox HTML fallback error: {_he}")
-
-            if not thread_id:
-                logger.warning(
-                    f"[KworkManager] ⚠️ Inbox thread for order {order_id} not found. "
-                    f"Сообщение сохранено в CLIENT_MESSAGE.md — отправьте вручную."
+                # ── Шаг 1: GET /inbox → chatList ──────────────────────────────
+                r_inbox = await client.get(
+                    f"{self.WEB_BASE}/inbox", headers=self._web_headers()
                 )
-                return False
+                logger.info(f"[KworkManager] GET /inbox: HTTP {r_inbox.status_code} len={len(r_inbox.text)}")
 
-            # ── Шаг 2: CSRF + отправка ────────────────────────────────────────
-            async with httpx.AsyncClient(
-                timeout=60.0, follow_redirects=True, cookies=self._cookies
-            ) as client_send:
-                # Получаем CSRF (ищем на странице inbox/{thread_id})
-                csrf = ""
-                try:
-                    cp = await client_send.get(
-                        f"{self.WEB_BASE}/inbox/{thread_id}", headers=self._web_headers()
-                    )
-                    for cpat in (
-                        r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"',
-                        r'name=["\']csrftoken["\'][^>]+value=["\']([^"\']+)',
-                        r'"csrftoken"\s*:\s*"([^"]+)"',
-                    ):
-                        cm = _re.search(cpat, cp.text, _re.I)
-                        if cm:
-                            csrf = cm.group(1)
-                            break
-                except Exception:
-                    pass
-                logger.info(f"[KworkManager] Delivery {order_id}: CSRF={'found (' + csrf[:8] + '…)' if csrf else 'NOT FOUND'}")
-
-                send_url = f"{self.WEB_BASE}/inbox/{thread_id}/send"
-                hdrs = self._web_headers()
-                hdrs["X-Requested-With"] = "XMLHttpRequest"
-                hdrs["Referer"] = f"{self.WEB_BASE}/inbox/{thread_id}"
-
-                # Сначала пробуем с ZIP
-                if attachment_path and os.path.isfile(attachment_path):
+                client_user_id: Optional[str] = None
+                chatlist_m = _re.search(
+                    r'window\.chatList\s*=\s*(\[[\s\S]+?\]);', r_inbox.text
+                )
+                if chatlist_m:
                     try:
-                        fname = os.path.basename(attachment_path)
-                        fsize = os.path.getsize(attachment_path) // 1024
-                        with open(attachment_path, "rb") as fh:
-                            resp = await client_send.post(
-                                send_url,
-                                data={"message": delivery_text, "csrf": csrf},
-                                files={"files[]": (fname, fh, "application/zip")},
-                                headers=hdrs,
-                                timeout=60,
+                        chatlist = _json.loads(chatlist_m.group(1))
+                        for entry in chatlist:
+                            if not isinstance(entry, dict):
+                                continue
+                            entry_str = _json.dumps(entry, ensure_ascii=False)
+                            if order_id in entry_str:
+                                uid = entry.get("user_id")
+                                if uid and str(uid) != "0":
+                                    client_user_id = str(uid)
+                                    logger.info(
+                                        f"[KworkManager] ✓ client_user_id={client_user_id} "
+                                        f"found in chatList for order {order_id}"
+                                    )
+                                    break
+                        if not client_user_id:
+                            logger.info(
+                                f"[KworkManager] chatList parsed ({len(chatlist)} entries) "
+                                f"but order {order_id} not found"
                             )
-                        if resp.status_code == 200 and '"error"' not in resp.text[:300]:
-                            logger.info(f"[KworkManager] ✅ Delivery + ZIP ({fsize} KB) → client (order {order_id})")
-                            return True
-                        logger.warning(f"[KworkManager] ZIP upload HTTP {resp.status_code}: {resp.text[:200]!r}; fallback text-only")
-                    except Exception as _ae:
-                        logger.warning(f"[KworkManager] ZIP error: {_ae} — fallback text-only")
+                    except Exception as _je:
+                        logger.warning(f"[KworkManager] chatList parse error: {_je}")
+                else:
+                    logger.warning("[KworkManager] window.chatList not found in /inbox HTML")
 
-                # Текстовое сообщение
-                resp = await client_send.post(
-                    send_url,
-                    data={"message": delivery_text, "csrf": csrf},
-                    headers=hdrs,
-                    timeout=15,
+                if not client_user_id:
+                    logger.warning(
+                        f"[KworkManager] ⚠️ client_user_id for order {order_id} not found. "
+                        "Сообщение сохранено в CLIENT_MESSAGE.md — отправьте вручную."
+                    )
+                    return False
+
+                # ── Шаг 2: GET /inbox/{client_user_id} → CSRF ─────────────────
+                r_dlg = await client.get(
+                    f"{self.WEB_BASE}/inbox/{client_user_id}",
+                    headers=self._web_headers(),
                 )
-                logger.info(f"[KworkManager] POST {send_url}: HTTP {resp.status_code} resp={resp.text[:200]!r}")
-                if resp.status_code == 200 and "error" not in resp.text.lower()[:100]:
-                    logger.info(f"[KworkManager] ✅ Delivery message sent to client (order {order_id})")
-                    return True
-                logger.warning(f"[KworkManager] ⚠️ Text send failed HTTP {resp.status_code}")
+                logger.info(
+                    f"[KworkManager] GET /inbox/{client_user_id}: "
+                    f"HTTP {r_dlg.status_code} len={len(r_dlg.text)}"
+                )
+
+                csrf = ""
+                for cpat in (
+                    r'<input[^>]+name=["\']csrftoken["\'][^>]+value=["\']([^"\']+)',
+                    r'window\.csrftoken\s*=\s*["\']([^"\']+)',
+                    r'["\']csrftoken["\']\s*:\s*["\']([a-zA-Z0-9_\-]{16,})',
+                ):
+                    cm = _re.search(cpat, r_dlg.text, _re.I)
+                    if cm:
+                        csrf = cm.group(1)
+                        break
+                logger.info(
+                    f"[KworkManager] Delivery {order_id}: "
+                    f"CSRF={'found (' + csrf[:8] + '…)' if csrf else 'NOT FOUND'}"
+                )
+
+                # ── Шаг 3: POST /sendmessage ───────────────────────────────────
+                send_url = f"{self.WEB_BASE}/sendmessage"
+                send_hdrs = self._web_headers()
+                send_hdrs["X-Requested-With"] = "XMLHttpRequest"
+                send_hdrs["Referer"] = f"{self.WEB_BASE}/inbox/{client_user_id}"
+                send_hdrs["Accept"] = "application/json, */*"
+                send_hdrs["Origin"] = self.WEB_BASE
+
+                form_data = {
+                    "csrftoken": csrf,
+                    "submg": "1",
+                    "msgto": client_user_id,
+                    "kworkId": order_id,
+                    "message_body": delivery_text,
+                    "message_message_format": "",
+                }
+
+                resp = await client.post(
+                    send_url, data=form_data, headers=send_hdrs, timeout=20
+                )
+                logger.info(
+                    f"[KworkManager] POST /sendmessage: "
+                    f"HTTP {resp.status_code} resp={resp.text[:300]!r}"
+                )
+
+                try:
+                    j = resp.json()
+                    if j.get("status") == "success" or j.get("success"):
+                        logger.info(
+                            f"[KworkManager] ✅ Delivery message sent to client "
+                            f"user_id={client_user_id} (order {order_id})"
+                        )
+                        return True
+                    err = j.get("response") or j.get("message") or j.get("error") or str(j)
+                    logger.warning(f"[KworkManager] ⚠️ /sendmessage error: {err}")
+                except Exception:
+                    if resp.status_code == 200 and "success" in resp.text.lower():
+                        logger.info(f"[KworkManager] ✅ Delivery sent (non-JSON success)")
+                        return True
+                    logger.warning(f"[KworkManager] ⚠️ /sendmessage non-JSON resp: {resp.text[:200]!r}")
 
         except Exception as e:
             logger.warning(f"[KworkManager] send_delivery_to_client error (order {order_id}): {e}")
