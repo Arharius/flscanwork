@@ -5924,146 +5924,160 @@ class KworkManager:
     async def send_delivery_to_client(self, order_id: str, delivery_text: str,
                                       attachment_path: Optional[str] = None) -> bool:
         """
-        v15.10.9: Отправляет готовый результат клиенту через Kwork inbox.
-        Поиск thread_id через /inbox/get_dialogs (JSON API) — не через /orders/{id} (возвращает 404).
+        v15.10.10c: Отправляет результат клиенту через Kwork inbox.
+        Шаг 1: поиск thread_id через /inbox/get_dialogs (тот же код что check_messages).
+        Шаг 2: CSRF + отправка через отдельный запрос.
+        Ключевое: НЕ делаем GET на главную / или другие страницы ПЕРЕД AJAX запросами
+        (GET запросы перезаписывают cookie jar и инвалидируют сессию для AJAX).
         """
         if not self.is_configured or not await self._authenticate():
             logger.warning(f"[KworkManager] Not configured/authenticated — cannot send delivery {order_id}")
             return False
 
+        import re as _re, json as _json
+
+        def _extract_thread_from_dialogs(dialogs: list) -> Optional[str]:
+            for dlg in dialogs:
+                if not isinstance(dlg, dict):
+                    continue
+                dlg_str = _json.dumps(dlg, ensure_ascii=False)
+                if order_id in dlg_str:
+                    for key in ("id", "dialog_id", "dialogId", "thread_id",
+                                "chatId", "chat_id", "conversationId"):
+                        if key in dlg:
+                            return str(dlg[key])
+            return None
+
         try:
-            import re as _re, json as _json
+            # ── Шаг 1: ищем thread_id (ТОЛЬКО AJAX, никаких GET страниц до этого) ──
+            thread_id = None
             async with httpx.AsyncClient(
-                timeout=20.0, follow_redirects=True, cookies=self._cookies
-            ) as client:
-                # Шаг 1: CSRF получаем со страницы /inbox (не с главной — она перезаписывает куки)
-                csrf = ""
-                try:
-                    csrf_page = await client.get(f"{self.WEB_BASE}/inbox", headers=self._web_headers())
-                    csrf_m = _re.search(r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"', csrf_page.text)
-                    if csrf_m:
-                        csrf = csrf_m.group(1)
-                except Exception:
-                    pass
-                logger.info(f"[KworkManager] Delivery {order_id}: CSRF={'found' if csrf else 'NOT FOUND'}")
-
-                # Шаг 2: ищем thread_id через inbox JSON API с пагинацией + HTML fallback
-                thread_id = None
-
-                def _extract_thread(dialogs: list) -> Optional[str]:
-                    for dlg in dialogs:
-                        if not isinstance(dlg, dict):
-                            continue
-                        dlg_str = _json.dumps(dlg, ensure_ascii=False)
-                        if order_id in dlg_str:
-                            for key in ("id", "dialog_id", "dialogId", "thread_id",
-                                        "chatId", "chat_id", "conversationId"):
-                                if key in dlg:
-                                    return str(dlg[key])
-                    return None
-
-                # A) JSON endpoints (с пагинацией page 0/1)
-                json_endpoints = [
-                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",       {"filter": "all"}),
-                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",       {"filter": "all", "page": 1}),
-                    ("POST", f"{self.WEB_BASE}/inbox/get_dialogs",       {"filter": "all", "offset": 20}),
-                    ("POST", f"{self.WEB_BASE}/inbox_list/load_dialogs", {"filter": "all"}),
-                    ("GET",  f"{self.WEB_BASE}/inbox?format=json",       None),
+                timeout=20.0, follow_redirects=False, cookies=self._cookies
+            ) as client_ajax:
+                # Те же endpoints что работают в check_messages (filter=unread → JSON)
+                ajax_tries = [
+                    {"filter": "unread"},
+                    {"filter": ""},
+                    {},
                 ]
-                for method, url, payload in json_endpoints:
+                for payload in ajax_tries:
                     if thread_id:
                         break
-                    try:
-                        hdrs = self._web_headers()
-                        hdrs["X-Requested-With"] = "XMLHttpRequest"
-                        hdrs["Accept"] = "application/json, */*"
-                        resp = (await client.post(url, headers=hdrs, data=payload or {})
-                                if method == "POST"
-                                else await client.get(url, headers=hdrs))
-                        if resp.status_code != 200:
-                            logger.info(f"[KworkManager] {url}({payload}) → HTTP {resp.status_code}")
-                            continue
+                    for url in (
+                        f"{self.WEB_BASE}/inbox/get_dialogs",
+                        f"{self.WEB_BASE}/inbox_list/load_dialogs",
+                    ):
                         try:
-                            jd = resp.json()
-                        except Exception:
-                            logger.info(f"[KworkManager] {url} → not JSON (len={len(resp.text)})")
-                            continue
-                        payload_obj = jd.get("response", jd) if isinstance(jd, dict) else jd
-                        dialogs: list = []
-                        if isinstance(payload_obj, list):
-                            dialogs = payload_obj
-                        elif isinstance(payload_obj, dict):
-                            for k in ("dialogs", "items", "list", "data"):
-                                v = payload_obj.get(k)
-                                if isinstance(v, list) and v:
-                                    dialogs = v
-                                    break
-                        logger.info(f"[KworkManager] {url}({payload}) → {len(dialogs)} dialogs")
-                        # debug: first dialog structure
-                        if dialogs:
-                            logger.debug(f"[KworkManager] first dialog keys: {list(dialogs[0].keys()) if isinstance(dialogs[0], dict) else dialogs[0]}")
-                            logger.info(f"[KworkManager] first dialog sample: {_json.dumps(dialogs[0], ensure_ascii=False)[:400]}")
-                        thread_id = _extract_thread(dialogs)
-                        if thread_id:
-                            logger.info(f"[KworkManager] Thread {thread_id} found for order {order_id}")
-                    except Exception as _e:
-                        logger.debug(f"[KworkManager] dialog endpoint {url}: {_e}")
-
-                # B) HTML fallback: парсим /inbox страницу
-                if not thread_id:
-                    try:
-                        r = await client.get(f"{self.WEB_BASE}/inbox", headers=self._web_headers())
-                        logger.info(f"[KworkManager] /inbox HTML: HTTP {r.status_code} len={len(r.text)}")
-                        # Поиск JSON блоков с order_id
-                        for pat in (
-                            rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}',
-                            rf'/inbox/(\d+)[^"]*"[^>]*>[\s\S]{{0,600}}?{order_id}',
-                            rf'"id"\s*:\s*(\d+)[^}}]{{0,300}}{order_id}',
-                        ):
-                            m = _re.search(pat, r.text, _re.S)
-                            if m:
-                                thread_id = m.group(1)
-                                logger.info(f"[KworkManager] Thread {thread_id} found in /inbox HTML via regex")
+                            hdrs = self._web_headers()
+                            hdrs["X-Requested-With"] = "XMLHttpRequest"
+                            hdrs["Accept"] = "application/json, */*; q=0.01"
+                            resp = await client_ajax.post(url, headers=hdrs, data=payload)
+                            if resp.status_code != 200:
+                                logger.info(f"[KworkManager] {url}{payload} → HTTP {resp.status_code}")
+                                continue
+                            try:
+                                jd = resp.json()
+                            except Exception:
+                                logger.info(f"[KworkManager] {url}{payload} → not JSON (len={len(resp.text)}) preview={resp.text[:100]!r}")
+                                continue
+                            payload_obj = jd.get("response", jd) if isinstance(jd, dict) else jd
+                            dialogs: list = []
+                            if isinstance(payload_obj, list):
+                                dialogs = payload_obj
+                            elif isinstance(payload_obj, dict):
+                                for k in ("dialogs", "items", "list", "data"):
+                                    v = payload_obj.get(k)
+                                    if isinstance(v, list) and v:
+                                        dialogs = v
+                                        break
+                            logger.info(f"[KworkManager] {url}{payload} → {len(dialogs)} dialogs")
+                            if dialogs:
+                                logger.info(f"[KworkManager] first dialog: {_json.dumps(dialogs[0], ensure_ascii=False)[:300]}")
+                            thread_id = _extract_thread_from_dialogs(dialogs)
+                            if thread_id:
+                                logger.info(f"[KworkManager] ✓ Thread {thread_id} found for order {order_id}")
                                 break
-                        if not thread_id:
-                            # Try JSON embedded in page
-                            jm = _re.search(r'(?:window\.\w+|__INITIAL_STATE__|stateData)\s*=\s*(\{.+?\})\s*;', r.text, _re.S)
-                            if jm:
-                                try:
-                                    page_json = _json.loads(jm.group(1))
-                                    page_str = _json.dumps(page_json)
-                                    if order_id in page_str:
-                                        im = _re.search(rf'"id"\s*:\s*(\d+)[^}}]{{0,400}}{order_id}', page_str)
-                                        if im:
-                                            thread_id = im.group(1)
-                                            logger.info(f"[KworkManager] Thread {thread_id} found in /inbox page JSON")
-                                except Exception:
-                                    pass
-                        if not thread_id:
-                            all_threads = _re.findall(r'href="/inbox/(\d+)"', r.text)
-                            logger.info(f"[KworkManager] /inbox HTML: found {len(all_threads)} inbox links: {all_threads[:5]}")
-                    except Exception as _he:
-                        logger.warning(f"[KworkManager] /inbox HTML fallback error: {_he}")
+                        except Exception as _ae:
+                            logger.debug(f"[KworkManager] ajax {url}: {_ae}")
 
-                if not thread_id:
-                    logger.warning(
-                        f"[KworkManager] ⚠️ Inbox thread for order {order_id} not found via API. "
-                        f"Сообщение сохранено в CLIENT_MESSAGE.md — отправьте вручную."
+            # ── Шаг 1b: HTML fallback ─────────────────────────────────────────
+            if not thread_id:
+                try:
+                    async with httpx.AsyncClient(
+                        timeout=15.0, follow_redirects=True, cookies=self._cookies
+                    ) as client_html:
+                        r = await client_html.get(
+                            f"{self.WEB_BASE}/inbox", headers=self._web_headers()
+                        )
+                    logger.info(f"[KworkManager] /inbox HTML: HTTP {r.status_code} len={len(r.text)}")
+                    for pat in (
+                        rf'href="/inbox/(\d+)"[^>]*>[^<]*{order_id}',
+                        rf'/inbox/(\d+)[^"]*"[^>]*>[\s\S]{{0,600}}?{order_id}',
+                        rf'"id"\s*:\s*(\d+)[^}}]{{0,300}}{order_id}',
+                    ):
+                        m = _re.search(pat, r.text, _re.S)
+                        if m:
+                            thread_id = m.group(1)
+                            logger.info(f"[KworkManager] ✓ Thread {thread_id} found in /inbox HTML")
+                            break
+                    if not thread_id:
+                        all_threads = _re.findall(r'href="/inbox/(\d+)"', r.text)
+                        logger.info(f"[KworkManager] /inbox HTML: {len(all_threads)} inbox links: {all_threads[:5]}")
+                        # Embed JSON scan
+                        jm = _re.search(r'"dialogs"\s*:\s*(\[.+?\])', r.text, _re.S)
+                        if jm:
+                            try:
+                                dlg_list = _json.loads(jm.group(1))
+                                thread_id = _extract_thread_from_dialogs(dlg_list)
+                                if thread_id:
+                                    logger.info(f"[KworkManager] ✓ Thread {thread_id} from /inbox JSON embed")
+                            except Exception:
+                                pass
+                except Exception as _he:
+                    logger.warning(f"[KworkManager] /inbox HTML fallback error: {_he}")
+
+            if not thread_id:
+                logger.warning(
+                    f"[KworkManager] ⚠️ Inbox thread for order {order_id} not found. "
+                    f"Сообщение сохранено в CLIENT_MESSAGE.md — отправьте вручную."
+                )
+                return False
+
+            # ── Шаг 2: CSRF + отправка ────────────────────────────────────────
+            async with httpx.AsyncClient(
+                timeout=60.0, follow_redirects=True, cookies=self._cookies
+            ) as client_send:
+                # Получаем CSRF (ищем на странице inbox/{thread_id})
+                csrf = ""
+                try:
+                    cp = await client_send.get(
+                        f"{self.WEB_BASE}/inbox/{thread_id}", headers=self._web_headers()
                     )
-                    return False
+                    for cpat in (
+                        r'"csrf"\s*:\s*"([a-zA-Z0-9_\-]+)"',
+                        r'name=["\']csrftoken["\'][^>]+value=["\']([^"\']+)',
+                        r'"csrftoken"\s*:\s*"([^"]+)"',
+                    ):
+                        cm = _re.search(cpat, cp.text, _re.I)
+                        if cm:
+                            csrf = cm.group(1)
+                            break
+                except Exception:
+                    pass
+                logger.info(f"[KworkManager] Delivery {order_id}: CSRF={'found (' + csrf[:8] + '…)' if csrf else 'NOT FOUND'}")
 
-                # Шаг 3: отправляем сообщение (с ZIP или без)
+                send_url = f"{self.WEB_BASE}/inbox/{thread_id}/send"
                 hdrs = self._web_headers()
                 hdrs["X-Requested-With"] = "XMLHttpRequest"
                 hdrs["Referer"] = f"{self.WEB_BASE}/inbox/{thread_id}"
-                send_url = f"{self.WEB_BASE}/inbox/{thread_id}/send"
 
+                # Сначала пробуем с ZIP
                 if attachment_path and os.path.isfile(attachment_path):
                     try:
                         fname = os.path.basename(attachment_path)
                         fsize = os.path.getsize(attachment_path) // 1024
                         with open(attachment_path, "rb") as fh:
-                            resp = await client.post(
+                            resp = await client_send.post(
                                 send_url,
                                 data={"message": delivery_text, "csrf": csrf},
                                 files={"files[]": (fname, fh, "application/zip")},
@@ -6073,20 +6087,22 @@ class KworkManager:
                         if resp.status_code == 200 and '"error"' not in resp.text[:300]:
                             logger.info(f"[KworkManager] ✅ Delivery + ZIP ({fsize} KB) → client (order {order_id})")
                             return True
-                        logger.warning(f"[KworkManager] ZIP upload failed HTTP {resp.status_code}: {resp.text[:200]!r}; fallback text-only")
+                        logger.warning(f"[KworkManager] ZIP upload HTTP {resp.status_code}: {resp.text[:200]!r}; fallback text-only")
                     except Exception as _ae:
-                        logger.warning(f"[KworkManager] ZIP attach error: {_ae} — fallback text-only")
+                        logger.warning(f"[KworkManager] ZIP error: {_ae} — fallback text-only")
 
-                resp = await client.post(
+                # Текстовое сообщение
+                resp = await client_send.post(
                     send_url,
                     data={"message": delivery_text, "csrf": csrf},
                     headers=hdrs,
                     timeout=15,
                 )
-                if resp.status_code == 200:
+                logger.info(f"[KworkManager] POST {send_url}: HTTP {resp.status_code} resp={resp.text[:200]!r}")
+                if resp.status_code == 200 and "error" not in resp.text.lower()[:100]:
                     logger.info(f"[KworkManager] ✅ Delivery message sent to client (order {order_id})")
                     return True
-                logger.warning(f"[KworkManager] ⚠️ Text send failed HTTP {resp.status_code}: {resp.text[:200]!r}")
+                logger.warning(f"[KworkManager] ⚠️ Text send failed HTTP {resp.status_code}")
 
         except Exception as e:
             logger.warning(f"[KworkManager] send_delivery_to_client error (order {order_id}): {e}")
