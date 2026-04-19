@@ -1859,19 +1859,20 @@ class SmartLLMRouter:
 
     # Model tiers on OpenRouter
     # Configurable via env vars; sensible defaults provided
-    # v15.9.6: устаревшие slug Anthropic/OpenAI давали 404 на OpenRouter — переключаем
-    # дефолты на проверенные DeepSeek модели; пользователь может переопределить через env.
+    # v15.10 ГИБРИДНЫЙ роутинг: сложные/архитектурные → Claude/GPT-4o (премиум-качество),
+    # простые/обзорные → DeepSeek (дёшево). При 404 LLMService автоматически помечает
+    # модель broken (line ~7293), а get_llm_for_task откатывается на DeepSeek.
     OPENROUTER_MODELS = {
-        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",    "deepseek/deepseek-chat-v3-0324"),
-        "security":     os.getenv("OPENROUTER_SEC_MODEL",     "deepseek/deepseek-chat-v3-0324"),
+        "architecture": os.getenv("OPENROUTER_ARCH_MODEL",    "anthropic/claude-sonnet-4"),
+        "security":     os.getenv("OPENROUTER_SEC_MODEL",     "openai/gpt-4o"),
         "review":       os.getenv("OPENROUTER_REVIEW_MODEL",  "deepseek/deepseek-chat-v3-0324"),
         "medium":       os.getenv("OPENROUTER_MEDIUM_MODEL",  "deepseek/deepseek-chat-v3-0324"),
     }
 
-    # Round-robin pool for complex proposals — все модели DeepSeek (надёжны на OpenRouter)
+    # Round-robin для complex proposals: премиум-микс с DeepSeek-фоллбэком
     COMPLEX_ROTATION: list = [
-        os.getenv("OPENROUTER_COMPLEX_MODEL_0", "deepseek/deepseek-r1"),
-        os.getenv("OPENROUTER_COMPLEX_MODEL_1", "deepseek/deepseek-chat-v3-0324"),
+        os.getenv("OPENROUTER_COMPLEX_MODEL_0", "anthropic/claude-sonnet-4"),
+        os.getenv("OPENROUTER_COMPLEX_MODEL_1", "openai/gpt-4o"),
         os.getenv("OPENROUTER_COMPLEX_MODEL_2", "deepseek/deepseek-r1"),
     ]
 
@@ -1929,6 +1930,14 @@ class SmartLLMRouter:
             model = cls._next_complex_model()   # round-robin: r1 → sonnet → gpt-4o
         else:
             model = cls.OPENROUTER_MODELS["medium"]
+
+        # v15.10: если выбранная модель уже помечена как broken (404 в этой сессии)
+        # → откатываемся на DeepSeek через shared LLM, чтобы не падать с 404 повторно.
+        if model in cls._broken_models:
+            logger.warning(
+                f"[SmartLLMRouter] ⚠️ модель {model} помечена broken — fallback на DeepSeek"
+            )
+            return _get_shared_llm()
 
         svc = LLMService.__new__(LLMService)
         svc.api_key  = openrouter_key
@@ -14657,8 +14666,8 @@ class OrderOrchestrator:
     EXCELLENCE_BUDGET_THRESHOLD = 3000   # RUB
     EXCELLENCE_MAX_ITERATIONS   = 9
     # v15.2: Trust Guard — refuse to auto-deliver substandard work
-    AUTO_DELIVER_MIN_SCORE    = 8.5
-    AUTO_DELIVER_MIN_SECURITY = 8.0
+    AUTO_DELIVER_MIN_SCORE    = float(os.getenv("AUTO_DELIVER_MIN_SCORE", "6.0"))    # v15.10: гибрид-режим — 6/10 порог
+    AUTO_DELIVER_MIN_SECURITY = float(os.getenv("AUTO_DELIVER_MIN_SECURITY", "7.0"))
 
     def _is_converged(self, ctx: AgentContext) -> bool:
         # v15.8: also require review_approved so SpecCompliance / DesignReview /
