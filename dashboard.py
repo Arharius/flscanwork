@@ -1977,10 +1977,10 @@ def api_enqueue_order():
             job_id = row["id"]
         else:
             cur = conn.execute(
-                "INSERT INTO jobs (platform, external_id, title, description, budget, currency, url, category) "
-                "VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO jobs (platform, external_id, title, description, budget, currency, url) "
+                "VALUES (?,?,?,?,?,?,?)",
                 ("Kwork", ext_id, title, title, budget, "RUB",
-                 f"https://kwork.ru/orders/{order_id}", "automation")
+                 f"https://kwork.ru/orders/{order_id}")
             )
             job_id = cur.lastrowid
         # proposal
