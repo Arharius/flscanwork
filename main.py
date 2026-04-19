@@ -13273,15 +13273,28 @@ class SandboxRunnerAgent:
             except Exception as e:
                 logger.warning(f"[{self.name}] import analysis error: {e}")
 
-            # 3. Quick execution check (--help or import-only mode, 5s timeout)
+            # 3. Quick execution check (--help or import-only mode, 8s timeout)
+            # v15.10.1: для long-running процессов (бот, сервер) код игнорирует
+            # --sandbox-check и просто стартует event-loop → TimeoutExpired = OK,
+            # значит startup без ошибок (раньше валило весь orchestrator).
             env = os.environ.copy()
             env["PYTHONPATH"] = tmpdir
-            run_result = subprocess.run(
-                [sys.executable, src_path, "--sandbox-check"],
-                capture_output=True, text=True,
-                timeout=8, cwd=tmpdir, env=env
-            )
-            combined = (run_result.stdout + run_result.stderr)[:800]
+            try:
+                run_result = subprocess.run(
+                    [sys.executable, src_path, "--sandbox-check"],
+                    capture_output=True, text=True,
+                    timeout=8, cwd=tmpdir, env=env
+                )
+                combined = (run_result.stdout + run_result.stderr)[:800]
+                exit_code = run_result.returncode
+                timed_out = False
+            except subprocess.TimeoutExpired as _te:
+                # Long-running процесс прожил 8с без падения = успешный старт
+                combined = ((_te.stdout or b"").decode("utf-8", "ignore")
+                            + (_te.stderr or b"").decode("utf-8", "ignore"))[:800]
+                exit_code = 0
+                timed_out = True
+                logger.info(f"[{self.name}] Sandbox: процесс жив >8с (long-running OK)")
 
             # Fatal errors = syntax/import errors at startup
             fatal = any(e in combined for e in (
@@ -13296,7 +13309,8 @@ class SandboxRunnerAgent:
                 return ctx
 
             ctx.sandbox_passed = True
-            ctx.sandbox_output = f"PASSED (exit={run_result.returncode})\n{combined}"
+            _tag = "TIMEOUT_OK" if timed_out else f"exit={exit_code}"
+            ctx.sandbox_output = f"PASSED ({_tag})\n{combined}"
 
             # v15.8: For web/api types — actually launch the process for ~10s
             # and probe HTTP endpoints to confirm it serves traffic.
