@@ -1,10 +1,22 @@
-# FreelanceBot v15.0 — Self-Learning Autonomous Freelance Agent
+# FreelanceBot v15.10.11 — Self-Learning Autonomous Freelance Agent
 
 ## Overview
 A 24/7 Python async service that continuously monitors 7 freelance platforms for jobs
 related to Viber bots, webhooks, and automation. It finds relevant orders, generates
 personalized proposals via DeepSeek/OpenAI, autonomously executes accepted orders,
 and systematically self-improves through Five Learning Pillars after every project.
+
+**v15.10.11 Additions (send_delivery_to_client — confirmed working 2026-04-19):**
+- **Delivery algorithm** fully confirmed empirically:
+  1. `GET /inbox` → parse `window.chatList` JSON → find `user_id` by `OID=order_id`
+  2. `GET /inbox/{client_user_id}` → extract `csrftoken` from hidden form input
+  3. `POST /sendmessage` with fields: `csrftoken`, `submg=1`, `msgto=client_user_id`, `kworkId=order_id`, `message_body=text`, `message_message_format=""`
+  4. Check `{"status":"success"}` → delivery confirmed
+- **Previous broken attempts** (documented for reference):
+  - `/inbox/get_dialogs` — does not exist (returns "Технические работы" HTML)
+  - `/inbox/{id}/send` — 404 (non-existent endpoint)
+  - Wrong field: `message` instead of `message_body`
+  - Wrong `msgto`: `member_id` (our ID=23988824) instead of `user_id` (client ID=592135)
 
 **v15.0 Additions (Переписка tab + Tablet UI):**
 - **"💬 Переписка" tab** in dashboard — real Kwork inbox via web-scrape (KWORK_SESSION_COOKIE) + FL.ru inbox via session login (FL_USERNAME/FL_PASSWORD)
