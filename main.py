@@ -35,6 +35,7 @@ There are no analogues in the world. This system combines:
 
 import os
 import re as _re
+import ast  # v15.9.7: используется в TesterAgent (test_syntax) и др. — отсутствие давало "name 'ast' is not defined"
 import asyncio
 import logging
 import sqlite3
